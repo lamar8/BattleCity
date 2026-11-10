@@ -162,24 +162,25 @@
     }
 
     draw(ctx) {
-      const isGenshin = BC.getSkin() === 'genshin';
+      const skin = BC.getSkin();
+      const isHD = skin !== 'classic';
 
       // Outer border
       ctx.fillStyle = BC.COLORS.HUD_GRAY;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
 
       // Playfield ground
-      ctx.fillStyle = isGenshin ? BC.COLORS.FIELD_BG : BC.COLORS.BLACK;
+      ctx.fillStyle = isHD ? BC.COLORS.FIELD_BG : BC.COLORS.BLACK;
       ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP, BC.FIELD_SIZE, BC.FIELD_SIZE);
 
       // Subtle 16x16 grid guide lines
-      ctx.fillStyle = isGenshin ? '#1F2A3C' : '#141414';
+      ctx.fillStyle = isHD ? BC.COLORS.FIELD_GRID : '#141414';
       for (let i = 1; i < BC.GRID_BLOCKS; i++) {
         ctx.fillRect(BC.BORDER_LEFT + i * 16, BC.BORDER_TOP, 0.5, BC.FIELD_SIZE);
         ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP + i * 16, BC.FIELD_SIZE, 0.5);
       }
 
-      if (isGenshin) {
+      if (isHD) {
         ctx.strokeStyle = BC.COLORS.GOLD_TRIM;
         ctx.lineWidth = 0.75;
         ctx.strokeRect(BC.BORDER_LEFT - 0.5, BC.BORDER_TOP - 0.5, BC.FIELD_SIZE + 1, BC.FIELD_SIZE + 1);

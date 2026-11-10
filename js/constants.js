@@ -220,12 +220,55 @@
       ENEMY_GOLD: ['#9A6118', '#DF992C', '#FFE38A', '#FFF4BD'],
       ENEMY_ELECTRO: ['#4B3278', '#8E63CC', '#D7C2FF', '#F3A8FF'],
     },
+    cyberpunk: {
+      BLACK: '#070912',
+      FIELD_BG: '#090D18',
+      FIELD_GRID: '#111C33',
+      HUD_GRAY: '#0D1220',
+      HUD_DARK: '#060810',
+      GOLD_TRIM: '#00F0FF',
+      GOLD_BRIGHT: '#FF2A85',
+      WHITE: '#E6FAFF',
+      TEXT_RED: '#FF2A85',
+      TEXT_ORANGE: '#FCEE0A',
+      TEXT_YELLOW: '#00F0FF',
+
+      BRICK_DARK: '#4E0A2E',
+      BRICK_MID: '#B5175B',
+      BRICK_LIGHT: '#FF3E8A',
+      BRICK_MORTAR: '#180A1C',
+
+      STEEL_DARK: '#161D2E',
+      STEEL_MID: '#2C3A57',
+      STEEL_LIGHT: '#FCEE0A',
+      STEEL_CORE: '#00F0FF',
+
+      FOREST_DARK: '#06473D',
+      FOREST_MID: '#00B884',
+      FOREST_LIGHT: '#29FFB8',
+
+      WATER_DARK: '#0A1A52',
+      WATER_MID: '#009EFF',
+      WATER_LIGHT: '#7CF7FF',
+
+      ICE_DARK: '#176E8C',
+      ICE_MID: '#4CE8FF',
+      ICE_LIGHT: '#DCFFFF',
+
+      P1: ['#0A3952', '#1783A8', '#70F8FF', '#FCEE0A'],
+      P2: ['#094230', '#16A876', '#69FFC6', '#00F0FF'],
+      ENEMY_BASIC: ['#273047', '#4E5F85', '#9EB2D8', '#FF2A85'],
+      ENEMY_RED: ['#6E0B2C', '#DB1A50', '#FF7AA8', '#FCEE0A'],
+      ENEMY_GREEN: ['#084A38', '#15BA88', '#6DFFD0', '#00F0FF'],
+      ENEMY_GOLD: ['#6E5406', '#D4A80C', '#FCEE0A', '#FF2A85'],
+      ENEMY_ELECTRO: ['#590E4F', '#C41A8E', '#FF70DA', '#00F0FF'],
+    },
   };
 
   function loadInitialSkin() {
     try {
       const saved = global.localStorage && global.localStorage.getItem(SKIN_STORAGE_KEY);
-      if (saved === 'classic' || saved === 'genshin') return saved;
+      if (saved === 'classic' || saved === 'genshin' || saved === 'cyberpunk') return saved;
     } catch (_) {}
     return 'genshin';
   }
@@ -238,7 +281,7 @@
   };
 
   BC.setSkin = function (skin) {
-    if (skin !== 'classic' && skin !== 'genshin') return;
+    if (skin !== 'classic' && skin !== 'genshin' && skin !== 'cyberpunk') return;
     BC.SKIN = skin;
     BC.COLORS = BC.THEMES[skin];
     if (BC.SKIN_SPRITES && BC.SKIN_SPRITES[skin]) {

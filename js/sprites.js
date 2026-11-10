@@ -1084,13 +1084,511 @@
     return cache;
   }
 
-  // Build both sprite libraries once
+  // =========================================================================
+  // 3. CYBERPUNK 2D HIGH-DEFINITION ARTWORK (Neon Night City & Mecha Drones)
+  // =========================================================================
+  function octagonPath(g, x, y, w, h, cut) {
+    g.beginPath();
+    g.moveTo(x + cut, y);
+    g.lineTo(x + w - cut, y);
+    g.lineTo(x + w, y + cut);
+    g.lineTo(x + w, y + h - cut);
+    g.lineTo(x + w - cut, y + h);
+    g.lineTo(x + cut, y + h);
+    g.lineTo(x, y + h - cut);
+    g.lineTo(x, y + cut);
+    g.closePath();
+  }
+
+  function drawCyberTankHD(designKey, pal, dir, frame) {
+    const SZ = 128;
+    const c = createCanvas(SZ, SZ);
+    const g = c.getContext('2d');
+    if (typeof g.beginPath !== 'function') return c;
+
+    const [cDark, cMid, cLight, cNeonRaw] = pal;
+    const cNeon = cNeonRaw || '#00F0FF';
+    const isPlayer = designKey.startsWith('P');
+    const tierOrType = parseInt(designKey[1], 10) || 0;
+
+    g.save();
+    g.translate(SZ / 2, SZ / 2);
+    g.rotate((dir * Math.PI) / 2);
+    g.translate(-SZ / 2, -SZ / 2);
+
+    // Subtle neon underglow
+    const under = g.createRadialGradient(64, 68, 12, 64, 68, 56);
+    under.addColorStop(0, cLight + '44');
+    under.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = under;
+    g.beginPath(); g.arc(64, 68, 56, 0, Math.PI * 2); g.fill();
+
+    // 1. Cyber Hover-Treads with illuminated pulse links
+    const treadW = designKey === 'E1' ? 18 : 22;
+    const treadXLeft = designKey === 'E0' ? 16 : 10;
+    const treadXRight = SZ - treadXLeft - treadW;
+    const treadY = 18;
+    const treadH = 96;
+
+    for (const tx of [treadXLeft, treadXRight]) {
+      g.fillStyle = '#0D121F';
+      octagonPath(g, tx, treadY, treadW, treadH, 5);
+      g.fill();
+
+      const shift = (frame & 1) * 8;
+      for (let py = treadY + 6 + shift; py < treadY + treadH - 8; py += 16) {
+        g.fillStyle = (py % 32 === 0) ? cNeon : cMid;
+        g.fillRect(tx + 3, py, treadW - 6, 6);
+      }
+
+      g.lineWidth = 3.5;
+      g.strokeStyle = cLight;
+      octagonPath(g, tx, treadY, treadW, treadH, 5);
+      g.stroke();
+    }
+
+    // 2. Angular Faceted Cyber Chassis
+    const hullX = treadXLeft + treadW - 4;
+    const hullW = SZ - hullX * 2;
+    const hullY = designKey === 'E1' ? 28 : 22;
+    const hullH = designKey === 'E1' ? 84 : 90;
+
+    const hullGrad = g.createLinearGradient(hullX, hullY, hullX + hullW, hullY + hullH);
+    hullGrad.addColorStop(0, cMid);
+    hullGrad.addColorStop(0.55, cDark);
+    hullGrad.addColorStop(1, '#090D18');
+    g.fillStyle = hullGrad;
+    octagonPath(g, hullX, hullY, hullW, hullH, designKey === 'E1' ? 18 : 12);
+    g.fill();
+
+    // Neon edge circuit strips
+    g.lineWidth = 4;
+    g.strokeStyle = cLight;
+    octagonPath(g, hullX, hullY, hullW, hullH, designKey === 'E1' ? 18 : 12);
+    g.stroke();
+
+    // Reactive side fins for upgraded players / heavy cyber armor
+    if ((isPlayer && tierOrType >= 2) || (!isPlayer && tierOrType === 3)) {
+      g.fillStyle = cNeon;
+      g.fillRect(hullX - 5, hullY + 24, 6, 42);
+      g.fillRect(hullX + hullW - 1, hullY + 24, 6, 42);
+    }
+
+    // Rear cyber vent glow
+    g.fillStyle = cNeon;
+    g.fillRect(48, hullY + hullH - 12, 32, 4);
+
+    // 3. Railgun / Plasma Cannon Barrel
+    const barrelW =
+      (isPlayer && tierOrType === 3) || (!isPlayer && tierOrType === 3) ? 14 :
+      (isPlayer && tierOrType >= 1) || (!isPlayer && tierOrType === 2) ? 11 : 8;
+    const barrelTop = isPlayer && tierOrType >= 1 ? 2 : 6;
+    const barrelLen = 58 - barrelTop;
+
+    // Twin rail slits for Tier 2+ / Power+
+    if ((isPlayer && tierOrType >= 2) || (!isPlayer && tierOrType >= 2)) {
+      g.fillStyle = '#0B1020';
+      g.fillRect(64 - barrelW * 0.85, barrelTop + 4, barrelW * 1.7, barrelLen - 14);
+      g.fillStyle = cNeon;
+      g.fillRect(64 - 2, barrelTop + 2, 4, barrelLen - 10);
+    }
+
+    g.fillStyle = cDark;
+    g.fillRect(64 - barrelW / 2, barrelTop, barrelW, barrelLen);
+    g.lineWidth = 3;
+    g.strokeStyle = cLight;
+    g.strokeRect(64 - barrelW / 2, barrelTop, barrelW, barrelLen);
+
+    // Glowing muzzle plasma emitter
+    g.fillStyle = (isPlayer && tierOrType >= 1) || (!isPlayer && tierOrType >= 2) ? cNeon : cLight;
+    g.fillRect(64 - barrelW * 0.75, barrelTop, barrelW * 1.5, 9);
+
+    // 4. Angular Octagonal Cyber Turret + Laser Visor Core
+    const turSize = designKey === 'E3' || (isPlayer && tierOrType === 3) ? 50 : 42;
+    const turX = 64 - turSize / 2;
+    const turY = 68 - turSize / 2;
+    const turGrad = g.createLinearGradient(turX, turY, turX + turSize, turY + turSize);
+    turGrad.addColorStop(0, cMid);
+    turGrad.addColorStop(1, '#0C1222');
+    g.fillStyle = turGrad;
+    octagonPath(g, turX, turY, turSize, turSize, 10);
+    g.fill();
+
+    g.lineWidth = 3.5;
+    g.strokeStyle = cLight;
+    octagonPath(g, turX, turY, turSize, turSize, 10);
+    g.stroke();
+
+    // Glowing Cyber Visor / Core Capacitor
+    g.fillStyle = cNeon;
+    octagonPath(g, 52, 60, 24, 14, 4);
+    g.fill();
+    g.fillStyle = '#FFFFFF';
+    g.fillRect(58, 64, 12, 5);
+
+    g.restore();
+    return c;
+  }
+
+  function buildCyberpunkSprites() {
+    const C = BC.THEMES.cyberpunk;
+    const cache = {};
+
+    const probe = createCanvas(4, 4).getContext('2d');
+    if (typeof probe.beginPath !== 'function' || typeof probe.createLinearGradient !== 'function') {
+      return buildClassicSprites();
+    }
+
+    // 1. Cyber Brick 64x64 (Dark polymer blocks with glowing Neon Magenta strips)
+    const brick = createCanvas(64, 64);
+    const bg = brick.getContext('2d');
+    bg.fillStyle = C.BRICK_MORTAR;
+    bg.fillRect(0, 0, 64, 64);
+    const drawCyberBrick = (x, y, w, h) => {
+      const gr = bg.createLinearGradient(x, y, x, y + h);
+      gr.addColorStop(0, '#441236');
+      gr.addColorStop(0.5, '#270B22');
+      gr.addColorStop(1, '#180716');
+      bg.fillStyle = gr;
+      bg.fillRect(x + 1, y + 1, w - 2, h - 2);
+      // Glowing hot magenta top neon bar
+      bg.fillStyle = C.BRICK_LIGHT;
+      bg.fillRect(x + 2, y + 2, w - 4, 3);
+      bg.lineWidth = 1.5;
+      bg.strokeStyle = C.BRICK_MID;
+      bg.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    };
+    drawCyberBrick(0, 0, 32, 16);
+    drawCyberBrick(32, 0, 32, 16);
+    drawCyberBrick(0, 16, 16, 16);
+    drawCyberBrick(16, 16, 32, 16);
+    drawCyberBrick(48, 16, 16, 16);
+    drawCyberBrick(0, 32, 32, 16);
+    drawCyberBrick(32, 32, 32, 16);
+    drawCyberBrick(0, 48, 16, 16);
+    drawCyberBrick(16, 48, 32, 16);
+    drawCyberBrick(48, 48, 16, 16);
+    cache.brickFull = brick;
+
+    // 2. Cyber Steel 64x64 (Gunmetal Titanium + Hazard Yellow frame + Neon Cyan Core)
+    const steel = createCanvas(64, 64);
+    const sg = steel.getContext('2d');
+    const stGrad = sg.createLinearGradient(0, 0, 64, 64);
+    stGrad.addColorStop(0, '#364666');
+    stGrad.addColorStop(0.5, C.STEEL_MID);
+    stGrad.addColorStop(1, C.STEEL_DARK);
+    sg.fillStyle = stGrad;
+    octagonPath(sg, 2, 2, 60, 60, 8);
+    sg.fill();
+    sg.lineWidth = 4;
+    sg.strokeStyle = C.STEEL_LIGHT;
+    octagonPath(sg, 6, 6, 52, 52, 6);
+    sg.stroke();
+    // Glowing cyan circuit cross
+    sg.strokeStyle = C.STEEL_CORE;
+    sg.lineWidth = 3;
+    sg.beginPath();
+    sg.moveTo(16, 32); sg.lineTo(48, 32);
+    sg.moveTo(32, 16); sg.lineTo(32, 48);
+    sg.stroke();
+    sg.fillStyle = '#FFFFFF';
+    octagonPath(sg, 24, 24, 16, 16, 4);
+    sg.fill();
+    cache.steel = steel;
+
+    // 3. Cyber Forest 64x64 (Digital Stealth Holo-Matrix Canopy)
+    const forest = createCanvas(64, 64);
+    const fg = forest.getContext('2d');
+    fg.fillStyle = 'rgba(6, 71, 61, 0.72)';
+    fg.fillRect(0, 0, 64, 64);
+    // Digital pixel-hex holo foliage
+    fg.strokeStyle = C.FOREST_MID;
+    fg.lineWidth = 2;
+    for (let y = 8; y < 64; y += 16) {
+      fg.beginPath(); fg.moveTo(0, y); fg.lineTo(64, y); fg.stroke();
+    }
+    for (let x = 8; x < 64; x += 16) {
+      fg.beginPath(); fg.moveTo(x, 0); fg.lineTo(x, 64); fg.stroke();
+    }
+    const holoNodes = [
+      [16, 16, 11], [48, 18, 12], [32, 32, 14], [18, 48, 11], [48, 48, 10],
+    ];
+    for (const [hx, hy, hr] of holoNodes) {
+      fg.fillStyle = C.FOREST_MID;
+      octagonPath(fg, hx - hr, hy - hr, hr * 2, hr * 2, 5);
+      fg.fill();
+      fg.fillStyle = C.FOREST_LIGHT;
+      fg.fillRect(hx - 4, hy - 4, 8, 8);
+    }
+    cache.forest = forest;
+
+    // 4. Cyber Water 64x64 (2 electric cyan data-river frames)
+    cache.water = [0, 1].map((frame) => {
+      const w = createCanvas(64, 64);
+      const wg = w.getContext('2d');
+      wg.fillStyle = C.WATER_DARK;
+      wg.fillRect(0, 0, 64, 64);
+      const off = frame * 16;
+      wg.strokeStyle = C.WATER_MID;
+      wg.lineWidth = 3;
+      for (const wy of [14, 34, 52]) {
+        wg.beginPath();
+        wg.moveTo(-16 + off, wy);
+        wg.lineTo(0 + off, wy - 6);
+        wg.lineTo(16 + off, wy);
+        wg.lineTo(32 + off, wy + 6);
+        wg.lineTo(48 + off, wy);
+        wg.lineTo(64 + off, wy - 6);
+        wg.stroke();
+      }
+      wg.fillStyle = C.WATER_LIGHT;
+      wg.fillRect((8 + off) % 52, 11, 12, 3);
+      wg.fillRect((36 - off + 64) % 52, 42, 14, 3);
+      return w;
+    });
+
+    // 5. Cyber Ice 64x64 (Cryogenic Superconductor Floor)
+    const ice = createCanvas(64, 64);
+    const ig = ice.getContext('2d');
+    const iGrad = ig.createLinearGradient(0, 0, 64, 64);
+    iGrad.addColorStop(0, C.ICE_LIGHT);
+    iGrad.addColorStop(0.5, C.ICE_MID);
+    iGrad.addColorStop(1, C.ICE_DARK);
+    ig.fillStyle = iGrad;
+    ig.fillRect(0, 0, 64, 64);
+    ig.strokeStyle = '#FFFFFF';
+    ig.lineWidth = 2;
+    octagonPath(ig, 8, 8, 48, 48, 12);
+    ig.stroke();
+    ig.fillStyle = 'rgba(255,255,255,0.5)';
+    ig.fillRect(26, 26, 12, 12);
+    cache.ice = ice;
+
+    // 6. Cyber Mainframe / Phoenix Core Base 128x128
+    const ea = createCanvas(128, 128);
+    const eg = ea.getContext('2d');
+    const halo = eg.createRadialGradient(64, 64, 8, 64, 64, 60);
+    halo.addColorStop(0, 'rgba(0, 240, 255, 0.5)');
+    halo.addColorStop(0.6, 'rgba(255, 42, 133, 0.28)');
+    halo.addColorStop(1, 'rgba(0,0,0,0)');
+    eg.fillStyle = halo;
+    eg.beginPath(); eg.arc(64, 64, 60, 0, Math.PI * 2); eg.fill();
+
+    eg.strokeStyle = '#00F0FF';
+    eg.lineWidth = 4;
+    octagonPath(eg, 12, 12, 104, 104, 24);
+    eg.stroke();
+
+    // Cyber Phoenix Wings
+    eg.fillStyle = '#0D172B';
+    eg.strokeStyle = '#FF2A85';
+    eg.lineWidth = 4;
+    for (const s of [-1, 1]) {
+      eg.beginPath();
+      eg.moveTo(64 + s * 10, 56);
+      eg.lineTo(64 + s * 54, 24);
+      eg.lineTo(64 + s * 44, 54);
+      eg.lineTo(64 + s * 52, 64);
+      eg.lineTo(64 + s * 34, 82);
+      eg.lineTo(64 + s * 14, 86);
+      eg.closePath();
+      eg.fill();
+      eg.stroke();
+    }
+    // Central Neon AI Prism
+    eg.fillStyle = '#00F0FF';
+    eg.strokeStyle = '#FFFFFF';
+    eg.lineWidth = 3;
+    octagonPath(eg, 46, 30, 36, 68, 12);
+    eg.fill();
+    eg.stroke();
+    eg.fillStyle = '#FCEE0A';
+    drawFourPointStar(eg, 64, 64, 14, 6);
+    eg.fill();
+    cache.eagleAlive = ea;
+
+    // Destroyed Mainframe
+    const ed = createCanvas(128, 128);
+    const edg = ed.getContext('2d');
+    edg.strokeStyle = '#334155';
+    edg.lineWidth = 4;
+    octagonPath(edg, 16, 16, 96, 96, 20);
+    edg.stroke();
+    edg.fillStyle = '#1E293B';
+    edg.strokeStyle = '#090D16';
+    for (const [rx, ry, rw, rh] of [[26, 56, 30, 22], [60, 72, 36, 24], [42, 40, 26, 20]]) {
+      edg.fillRect(rx, ry, rw, rh);
+      edg.strokeRect(rx, ry, rw, rh);
+    }
+    edg.strokeStyle = '#FF2A85';
+    edg.lineWidth = 3;
+    edg.beginPath();
+    edg.moveTo(36, 48); edg.lineTo(54, 66); edg.lineTo(44, 78);
+    edg.moveTo(84, 44); edg.lineTo(68, 60); edg.lineTo(82, 70);
+    edg.stroke();
+    cache.eagleDead = ed;
+
+    // 7. Plasma Laser Bullets 32x32
+    cache.bullets = [0, 1, 2, 3].map((d) => {
+      const bc = createCanvas(32, 32);
+      const bg2 = bc.getContext('2d');
+      bg2.save();
+      bg2.translate(16, 16);
+      bg2.rotate((d * Math.PI) / 2);
+      const bGlow = bg2.createRadialGradient(0, 0, 2, 0, 0, 14);
+      bGlow.addColorStop(0, '#FFFFFF');
+      bGlow.addColorStop(0.4, '#00F0FF');
+      bGlow.addColorStop(0.85, 'rgba(255, 42, 133, 0.7)');
+      bGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      bg2.fillStyle = bGlow;
+      bg2.beginPath(); bg2.arc(0, 0, 14, 0, Math.PI * 2); bg2.fill();
+      bg2.fillStyle = '#FFFFFF';
+      bg2.fillRect(-3, -11, 6, 20);
+      bg2.restore();
+      return bc;
+    });
+
+    // 8. Target-Lock Spawn Reticle 128x128 (4 frames)
+    cache.spawnStars = [0.35, 0.65, 0.95, 0.7].map((scale, idx) => {
+      const sc = createCanvas(128, 128);
+      const sg2 = sc.getContext('2d');
+      const r = 48 * scale;
+      sg2.strokeStyle = idx % 2 === 0 ? '#00F0FF' : '#FF2A85';
+      sg2.lineWidth = 5;
+      octagonPath(sg2, 64 - r, 64 - r, r * 2, r * 2, r * 0.45);
+      sg2.stroke();
+      sg2.fillStyle = '#FFFFFF';
+      drawFourPointStar(sg2, 64, 64, r * 0.7, r * 0.2);
+      sg2.fill();
+      return sc;
+    });
+
+    // 9. Holographic Forcefield Shield 128x128
+    cache.shield = [0, 1].map((f) => {
+      const sh = createCanvas(128, 128);
+      const sg2 = sh.getContext('2d');
+      sg2.strokeStyle = f === 0 ? '#00F0FF' : '#FF2A85';
+      sg2.lineWidth = 5;
+      octagonPath(sg2, 8, 8, 112, 112, 26);
+      sg2.stroke();
+      sg2.strokeStyle = 'rgba(252, 238, 10, 0.6)';
+      sg2.lineWidth = 2.5;
+      octagonPath(sg2, 16, 16, 96, 96, 20);
+      sg2.stroke();
+      return sh;
+    });
+
+    // 10. 6 Cyber-Chip Power-Ups 128x128
+    cache.powerups = {};
+    const puColors = {
+      [BC.POWERUP.HELMET]: '#00F0FF',
+      [BC.POWERUP.CLOCK]: '#A855F7',
+      [BC.POWERUP.SHOVEL]: '#FCEE0A',
+      [BC.POWERUP.STAR]: '#00FFA3',
+      [BC.POWERUP.GRENADE]: '#FF2A85',
+      [BC.POWERUP.TANK]: '#00F0FF',
+    };
+    for (const type of Object.values(BC.POWERUP)) {
+      const pc = createCanvas(128, 128);
+      const pg = pc.getContext('2d');
+      const glowCol = puColors[type];
+
+      pg.fillStyle = '#090D1A';
+      octagonPath(pg, 12, 12, 104, 104, 18);
+      pg.fill();
+
+      const inner = pg.createRadialGradient(64, 64, 6, 64, 64, 48);
+      inner.addColorStop(0, glowCol + '66');
+      inner.addColorStop(1, 'rgba(0,0,0,0)');
+      pg.fillStyle = inner;
+      pg.fillRect(14, 14, 100, 100);
+
+      pg.lineWidth = 6;
+      pg.strokeStyle = glowCol;
+      octagonPath(pg, 12, 12, 104, 104, 18);
+      pg.stroke();
+
+      pg.fillStyle = glowCol;
+      pg.strokeStyle = '#FFFFFF';
+      pg.lineWidth = 3;
+
+      if (type === BC.POWERUP.STAR) {
+        drawFourPointStar(pg, 64, 64, 38, 14);
+        pg.fill(); pg.stroke();
+      } else if (type === BC.POWERUP.HELMET) {
+        octagonPath(pg, 34, 30, 60, 68, 16);
+        pg.fill(); pg.stroke();
+        pg.fillStyle = '#090D1A';
+        octagonPath(pg, 46, 42, 36, 44, 8);
+        pg.fill();
+      } else if (type === BC.POWERUP.CLOCK) {
+        pg.beginPath(); pg.arc(64, 64, 30, 0, Math.PI * 2); pg.fill(); pg.stroke();
+        pg.fillStyle = '#090D1A';
+        pg.beginPath(); pg.arc(64, 64, 21, 0, Math.PI * 2); pg.fill();
+        pg.strokeStyle = '#FCEE0A';
+        pg.lineWidth = 5;
+        pg.beginPath(); pg.moveTo(64, 48); pg.lineTo(64, 64); pg.lineTo(78, 72); pg.stroke();
+      } else if (type === BC.POWERUP.SHOVEL) {
+        pg.save();
+        pg.translate(64, 64); pg.rotate(Math.PI / 4);
+        pg.fillRect(-16, -34, 32, 26);
+        pg.strokeRect(-16, -34, 32, 26);
+        pg.fillRect(-5, -8, 10, 42);
+        pg.restore();
+      } else if (type === BC.POWERUP.GRENADE) {
+        pg.beginPath(); pg.arc(64, 68, 26, 0, Math.PI * 2); pg.fill(); pg.stroke();
+        pg.fillStyle = '#FCEE0A';
+        drawFourPointStar(pg, 64, 68, 16, 6); pg.fill();
+        pg.fillStyle = '#00F0FF';
+        pg.fillRect(54, 28, 20, 12);
+      } else if (type === BC.POWERUP.TANK) {
+        const mini = drawCyberTankHD('P2', C.P1, 0, 0);
+        pg.drawImage(mini, 20, 20, 88, 88);
+      }
+      cache.powerups[type] = pc;
+    }
+
+    // 11. Cyber HUD Icons
+    const he = createCanvas(64, 64);
+    const heg = he.getContext('2d');
+    heg.fillStyle = '#FF2A85';
+    heg.strokeStyle = '#00F0FF';
+    heg.lineWidth = 3;
+    octagonPath(heg, 12, 16, 40, 34, 8);
+    heg.fill(); heg.stroke();
+    heg.fillStyle = '#FCEE0A';
+    heg.fillRect(28, 8, 8, 14);
+    cache.hudEnemy = he;
+
+    const hl = createCanvas(64, 64);
+    const hlg = hl.getContext('2d');
+    hlg.drawImage(drawCyberTankHD('P0', C.P1, 0, 0), 4, 4, 56, 56);
+    cache.hudLife = hl;
+
+    const fl = createCanvas(128, 128);
+    const flg = fl.getContext('2d');
+    flg.fillStyle = '#00F0FF';
+    flg.fillRect(20, 16, 9, 96);
+    flg.fillStyle = '#FF2A85';
+    flg.strokeStyle = '#00F0FF';
+    flg.lineWidth = 4;
+    flg.beginPath();
+    flg.moveTo(29, 20); flg.lineTo(108, 44); flg.lineTo(29, 70); flg.closePath();
+    flg.fill(); flg.stroke();
+    cache.flag = fl;
+
+    return cache;
+  }
+
+  // Build all sprite libraries once
   const classicSprites = buildClassicSprites();
   const genshinSprites = buildGenshinSprites();
+  const cyberpunkSprites = buildCyberpunkSprites();
 
   BC.SKIN_SPRITES = {
     classic: classicSprites,
     genshin: genshinSprites,
+    cyberpunk: cyberpunkSprites,
   };
   BC.SPRITES = BC.SKIN_SPRITES[BC.getSkin()];
 
@@ -1107,6 +1605,8 @@
       const base = normalizeDesign(TANK_DESIGNS[designKey]);
       const withTreads = applyTreads(base, frame & 1, '3', '1');
       cached = renderBitmap(withTreads, palette, dir);
+    } else if (skin === 'cyberpunk') {
+      cached = drawCyberTankHD(designKey, palette, dir, frame);
     } else {
       cached = drawGenshinTankHD(designKey, palette, dir, frame);
     }
@@ -1132,9 +1632,10 @@
     if (mask & 8) ctx.drawImage(brickSrc, sw, sh, sw, sh, px + 4, py + 4, 4, 4);
   };
 
-  // Skin-aware Explosions (Classic NES pixel burst vs Genshin cel-shaded anime blast)
+  // Skin-aware Explosions (Classic NES pixel burst / Genshin anime blast / Cyberpunk EMP Plasma)
   BC.drawExplosion = function (ctx, cx, cy, frame, isBig) {
-    if (BC.getSkin() === 'classic') {
+    const skin = BC.getSkin();
+    if (skin === 'classic') {
       const x = Math.round(cx);
       const y = Math.round(cy);
 
@@ -1186,9 +1687,48 @@
       return;
     }
 
-    // Genshin Modern 2D Cel-Shaded Elemental Blast
     if (typeof ctx.beginPath !== 'function') return;
     ctx.save();
+
+    if (skin === 'cyberpunk') {
+      if (!isBig) {
+        const r = [4.5, 8, 5.5][Math.min(2, frame)];
+        ctx.strokeStyle = '#00F0FF';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(cx, cy, r + 1.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FF2A85';
+        drawFourPointStar(ctx, cx, cy, r, r * 0.35);
+        ctx.fill();
+        ctx.restore();
+        return;
+      }
+
+      const radii = [7, 13, 17, 20, 16];
+      const r = radii[Math.min(4, frame)];
+      const alpha = frame >= 3 ? (frame === 3 ? 0.85 : 0.45) : 1.0;
+
+      // Dual neon EMP shockwave rings
+      ctx.strokeStyle = `rgba(0, 240, 255, ${alpha})`;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 1.18, 0, Math.PI * 2); ctx.stroke();
+
+      ctx.fillStyle = `rgba(255, 42, 133, ${alpha * 0.85})`;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 0.88, 0, Math.PI * 2); ctx.fill();
+
+      if (frame <= 3) {
+        ctx.fillStyle = `rgba(252, 238, 10, ${alpha})`;
+        drawFourPointStar(ctx, cx, cy, r * 0.8, r * 0.28);
+        ctx.fill();
+      }
+      if (frame <= 1) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+
+    // Genshin Modern 2D Cel-Shaded Elemental Blast
     if (!isBig) {
       const r = [4, 7.5, 5.5][Math.min(2, frame)];
       ctx.fillStyle = 'rgba(255, 130, 65, 0.55)';

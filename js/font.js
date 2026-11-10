@@ -169,11 +169,24 @@
     return color;
   }
 
+  function remapCyberColor(color) {
+    if (!color) return '#E6FAFF';
+    const up = color.toUpperCase();
+    if (up === '#000000') return '#00F0FF';
+    if (up === '#3A3A3A') return '#7A92B8';
+    if (up === '#FCFCFC') return '#E6FAFF';
+    if (up === '#D82800') return '#FF2A85';
+    if (up === '#FC9838') return '#FCEE0A';
+    if (up === '#FCE4A0') return '#00F0FF';
+    return color;
+  }
+
   // =========================================================================
   // UNIFIED SKIN-AWARE EXPORTS
   // =========================================================================
   BC.drawText = function (ctx, text, x, y, color = '#FCFCFC', align = 'left', sizeLogical = 7.5) {
-    if (BC.getSkin() === 'classic') {
+    const skin = BC.getSkin();
+    if (skin === 'classic') {
       const str = String(text).toUpperCase();
       let startX = Math.round(x);
       if (align === 'center') startX = Math.round(x - (str.length * 8) / 2);
@@ -189,21 +202,28 @@
     if (!ctx.fillText) return;
     const S = BC.RENDER_SCALE || 4;
     const str = String(text);
-    const fillCol = remapGenshinColor(color);
+    const isCyber = skin === 'cyberpunk';
+    const fillCol = isCyber ? remapCyberColor(color) : remapGenshinColor(color);
 
     ctx.save();
     ctx.scale(1 / S, 1 / S);
 
     const pxSize = Math.round(sizeLogical * S);
-    ctx.font = `700 ${pxSize}px "Georgia", "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif`;
+    ctx.font = isCyber
+      ? `800 ${pxSize}px "Orbitron", "Consolas", "Bahnschrift", "Microsoft YaHei", sans-serif`
+      : `700 ${pxSize}px "Georgia", "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif`;
     ctx.textBaseline = 'top';
     ctx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
 
     const drawX = Math.round(x * S);
     const drawY = Math.round(y * S);
 
+    if (isCyber) {
+      ctx.shadowColor = fillCol;
+      ctx.shadowBlur = 8;
+    }
     ctx.lineWidth = Math.max(2, S * 0.85);
-    ctx.strokeStyle = 'rgba(10, 14, 24, 0.9)';
+    ctx.strokeStyle = isCyber ? 'rgba(6, 10, 22, 0.95)' : 'rgba(10, 14, 24, 0.9)';
     ctx.strokeText(str, drawX, drawY);
 
     ctx.fillStyle = fillCol;
@@ -212,7 +232,8 @@
   };
 
   BC.drawBrickWord = function (ctx, word, centerX, y, scale = 5, isRed = false) {
-    if (BC.getSkin() === 'classic') {
+    const skin = BC.getSkin();
+    if (skin === 'classic') {
       const palette = isRed
         ? ['#580000', '#A81800', '#E44010']
         : ['#682000', '#B03800', '#E86818'];
@@ -224,6 +245,7 @@
     if (!ctx.fillText || !ctx.createLinearGradient) return;
     const S = BC.RENDER_SCALE || 4;
     const str = String(word).toUpperCase();
+    const isCyber = skin === 'cyberpunk';
 
     ctx.save();
     ctx.scale(1 / S, 1 / S);
@@ -232,20 +254,42 @@
     const fontPx = Math.round(scale * 6.8 * S);
     const topY = Math.round(y * S);
 
-    ctx.font = `900 ${fontPx}px "Cinzel", "Georgia", "Times New Roman", serif`;
+    ctx.font = isCyber
+      ? `900 italic ${fontPx}px "Orbitron", "Bahnschrift", "Impact", sans-serif`
+      : `900 ${fontPx}px "Cinzel", "Georgia", "Times New Roman", serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
+    if (isCyber) {
+      // Chromatic cyber aberration offset layer
+      ctx.fillStyle = isRed ? 'rgba(0, 240, 255, 0.55)' : 'rgba(255, 42, 133, 0.65)';
+      ctx.fillText(str, cx + 5, topY + 3);
+    }
+
     ctx.save();
-    ctx.shadowColor = isRed ? 'rgba(255, 78, 80, 0.65)' : 'rgba(245, 200, 105, 0.55)';
-    ctx.shadowBlur = 18;
+    ctx.shadowColor = isCyber
+      ? (isRed ? 'rgba(255, 42, 133, 0.85)' : 'rgba(0, 240, 255, 0.78)')
+      : (isRed ? 'rgba(255, 78, 80, 0.65)' : 'rgba(245, 200, 105, 0.55)');
+    ctx.shadowBlur = isCyber ? 22 : 18;
     ctx.lineWidth = Math.round(S * 2.2);
-    ctx.strokeStyle = isRed ? '#380D14' : '#1E1810';
+    ctx.strokeStyle = isCyber ? '#070B1A' : (isRed ? '#380D14' : '#1E1810');
     ctx.strokeText(str, cx, topY);
     ctx.restore();
 
     const grad = ctx.createLinearGradient(0, topY, 0, topY + fontPx);
-    if (isRed) {
+    if (isCyber) {
+      if (isRed) {
+        grad.addColorStop(0.0, '#FFE0F0');
+        grad.addColorStop(0.45, '#FF2A85');
+        grad.addColorStop(0.85, '#B00054');
+        grad.addColorStop(1.0, '#4F0028');
+      } else {
+        grad.addColorStop(0.0, '#FFFFFF');
+        grad.addColorStop(0.42, '#00F0FF');
+        grad.addColorStop(0.75, '#0088E8');
+        grad.addColorStop(1.0, '#FCEE0A');
+      }
+    } else if (isRed) {
       grad.addColorStop(0.0, '#FFD4CC');
       grad.addColorStop(0.42, '#FF685C');
       grad.addColorStop(0.75, '#D12E3C');
@@ -261,13 +305,17 @@
     ctx.fillText(str, cx, topY);
 
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = isRed ? 'rgba(255,215,210,0.45)' : 'rgba(255,252,235,0.55)';
+    ctx.strokeStyle = isCyber
+      ? 'rgba(255, 255, 255, 0.7)'
+      : (isRed ? 'rgba(255,215,210,0.45)' : 'rgba(255,252,235,0.55)');
     ctx.strokeText(str, cx, topY);
 
     if (ctx.beginPath) {
-      const lineW = Math.min(ctx.measureText(str).width * 0.72, 160 * S);
+      const lineW = Math.min(ctx.measureText(str).width * 0.76, 168 * S);
       const lineY = topY + fontPx + Math.round(S * 1.2);
-      ctx.strokeStyle = isRed ? 'rgba(255, 110, 100, 0.55)' : 'rgba(211, 188, 142, 0.6)';
+      ctx.strokeStyle = isCyber
+        ? (isRed ? 'rgba(255, 42, 133, 0.8)' : 'rgba(0, 240, 255, 0.8)')
+        : (isRed ? 'rgba(255, 110, 100, 0.55)' : 'rgba(211, 188, 142, 0.6)');
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(cx - lineW / 2, lineY);
@@ -276,7 +324,7 @@
       ctx.lineTo(cx + lineW / 2, lineY);
       ctx.stroke();
 
-      ctx.fillStyle = isRed ? '#FF948A' : '#FCE7A2';
+      ctx.fillStyle = isCyber ? '#FCEE0A' : (isRed ? '#FF948A' : '#FCE7A2');
       ctx.beginPath();
       ctx.moveTo(cx, lineY - 6);
       ctx.lineTo(cx + 6, lineY);

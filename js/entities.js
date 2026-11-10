@@ -255,10 +255,10 @@
       const S = BC.SUBTILE_SIZE;
       const ox = BC.BORDER_LEFT;
       const oy = BC.BORDER_TOP;
-      const isGenshin = BC.getSkin() === 'genshin';
-      if (isGenshin) {
+      const isHD = BC.getSkin() !== 'classic';
+      if (isHD) {
         ctx.save();
-        ctx.globalAlpha = 0.88;
+        ctx.globalAlpha = BC.getSkin() === 'cyberpunk' ? 0.85 : 0.88;
       }
 
       for (let ty = 0; ty < BC.GRID_SUBTILES; ty++) {
@@ -269,7 +269,7 @@
         }
       }
 
-      if (isGenshin) {
+      if (isHD) {
         ctx.restore();
       }
     }
@@ -471,7 +471,7 @@
         } else if (this.enemyType === BC.ENEMY_TYPE.ARMOR) {
           if (this.hp === 4) {
             paletteKey = (Math.floor(globalFrame / 4) % 2 === 0)
-              ? (BC.getSkin() === 'genshin' ? 'ENEMY_ELECTRO' : 'ENEMY_GREEN')
+              ? (BC.getSkin() !== 'classic' ? 'ENEMY_ELECTRO' : 'ENEMY_GREEN')
               : 'ENEMY_GOLD';
           } else if (this.hp === 3) {
             paletteKey = 'ENEMY_GOLD';

@@ -1112,8 +1112,7 @@
     render() {
       const ctx = this.ctx;
       const S = BC.RENDER_SCALE || 4;
-      const isGenshin = BC.getSkin() === 'genshin';
-      ctx.imageSmoothingEnabled = isGenshin;
+      ctx.imageSmoothingEnabled = BC.getSkin() !== 'classic';
 
       ctx.save();
       ctx.scale(S, S);
@@ -1137,6 +1136,40 @@
       }
 
       ctx.restore();
+    }
+
+    _drawCyberBackdrop(ctx, animated = false) {
+      if (typeof ctx.createLinearGradient === 'function') {
+        const bg = ctx.createLinearGradient(0, 0, 0, BC.SCREEN_HEIGHT);
+        bg.addColorStop(0, '#070913');
+        bg.addColorStop(0.55, '#120C28');
+        bg.addColorStop(1, '#09111E');
+        ctx.fillStyle = bg;
+      } else {
+        ctx.fillStyle = BC.COLORS.BLACK;
+      }
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+
+      if (animated && typeof ctx.beginPath === 'function') {
+        // Subtle cyber perspective grid at bottom + neon rain motes
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.16)';
+        ctx.lineWidth = 0.4;
+        for (let gy = 175; gy <= 238; gy += 12) {
+          ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(BC.SCREEN_WIDTH, gy); ctx.stroke();
+        }
+        for (let gx = -80; gx <= 336; gx += 28) {
+          ctx.beginPath(); ctx.moveTo(128 + (gx - 128) * 0.25, 175); ctx.lineTo(gx, 240); ctx.stroke();
+        }
+        const motes = [
+          [22, 28], [52, 74], [218, 22], [238, 86], [28, 136], [228, 152], [44, 198], [210, 212],
+        ];
+        for (let i = 0; i < motes.length; i++) {
+          const [mx, my] = motes[i];
+          const pulse = 0.35 + 0.65 * Math.abs(Math.sin(this.globalFrame * 0.06 + i));
+          ctx.fillStyle = i % 2 === 0 ? `rgba(0, 240, 255, ${pulse})` : `rgba(255, 42, 133, ${pulse})`;
+          ctx.fillRect(mx, my, 1, 5);
+        }
+      }
     }
 
     _drawTeyvatBackdrop(ctx, animatedStars = false) {
@@ -1167,14 +1200,19 @@
       }
     }
 
-    _renderTitle(ctx) {
-      const isGenshin = BC.getSkin() === 'genshin';
-      if (isGenshin) {
-        this._drawTeyvatBackdrop(ctx, true);
-      } else {
+    _renderBackdrop(ctx, animated = false) {
+      const skin = BC.getSkin();
+      if (skin === 'genshin') this._drawTeyvatBackdrop(ctx, animated);
+      else if (skin === 'cyberpunk') this._drawCyberBackdrop(ctx, animated);
+      else {
         ctx.fillStyle = BC.COLORS.BLACK;
         ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
       }
+    }
+
+    _renderTitle(ctx) {
+      const isHD = BC.getSkin() !== 'classic';
+      this._renderBackdrop(ctx, true);
 
       const oy = Math.round(this.titleSlideY);
 
@@ -1191,7 +1229,7 @@
       // Menu Choices
       const items = ['1 PLAYER', '2 PLAYERS', 'CONSTRUCTION'];
       for (let i = 0; i < items.length; i++) {
-        const col = isGenshin && i === this.menuIndex && this.titleSlideY === 0 ? '#FCE4A0' : '#FCFCFC';
+        const col = isHD && i === this.menuIndex && this.titleSlideY === 0 ? '#FCE4A0' : '#FCFCFC';
         BC.drawText(ctx, items[i], 92, 138 + i * 16 + oy, col);
       }
 
@@ -1209,14 +1247,12 @@
     }
 
     _renderStageSelect(ctx) {
-      const isGenshin = BC.getSkin() === 'genshin';
+      const skin = BC.getSkin();
+      const isHD = skin !== 'classic';
       if (this.curtainPhase === 'opening') {
         this._renderPlayfield(ctx);
-      } else if (isGenshin) {
-        this._drawTeyvatBackdrop(ctx, false);
       } else {
-        ctx.fillStyle = BC.COLORS.BLACK;
-        ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+        this._renderBackdrop(ctx, false);
       }
 
       // Top and Bottom Curtains
@@ -1229,7 +1265,7 @@
         this.curtainProgress
       );
 
-      if (isGenshin && this.curtainProgress > 4) {
+      if (isHD && this.curtainProgress > 4) {
         ctx.fillStyle = BC.COLORS.GOLD_TRIM;
         ctx.fillRect(0, this.curtainProgress - 1.5, BC.SCREEN_WIDTH, 1);
         ctx.fillRect(0, BC.SCREEN_HEIGHT - this.curtainProgress + 0.5, BC.SCREEN_WIDTH, 1);
@@ -1240,7 +1276,7 @@
           this.stage > BC.TOTAL_CLASSIC_STAGES
             ? 'STAGE CUSTOM'
             : `STAGE ${String(this.stage).padStart(2, ' ')}`;
-        BC.drawText(ctx, label, 128, 112, isGenshin ? '#FCE4A0' : '#000000', 'center', isGenshin ? 10 : 7.5);
+        BC.drawText(ctx, label, 128, 112, isHD ? '#FCE4A0' : '#000000', 'center', isHD ? 10 : 7.5);
         if (this.canBrowseStage) {
           BC.drawText(ctx, '< SELECT STAGE >', 128, 136, '#3A3A3A', 'center');
           BC.drawText(ctx, 'PRESS START', 128, 152, '#FCFCFC', 'center');
@@ -1249,18 +1285,17 @@
     }
 
     _renderPlayfield(ctx) {
-      const isGenshin = BC.getSkin() === 'genshin';
+      const isHD = BC.getSkin() !== 'classic';
 
       // Outer border & right sidebar
       ctx.fillStyle = BC.COLORS.HUD_GRAY;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
 
       // 208x208 Battlefield Ground
-      ctx.fillStyle = isGenshin ? BC.COLORS.FIELD_BG : BC.COLORS.BLACK;
+      ctx.fillStyle = isHD ? BC.COLORS.FIELD_BG : BC.COLORS.BLACK;
       ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP, BC.FIELD_SIZE, BC.FIELD_SIZE);
 
-      if (isGenshin) {
-        // Subtle Mondstadt / Liyue stone courtyard floor seams & gold border trim
+      if (isHD) {
         ctx.fillStyle = BC.COLORS.FIELD_GRID;
         for (let i = 1; i < BC.GRID_BLOCKS; i++) {
           ctx.fillRect(BC.BORDER_LEFT + i * 16, BC.BORDER_TOP, 0.5, BC.FIELD_SIZE);
@@ -1363,12 +1398,7 @@
     }
 
     _renderTally(ctx) {
-      if (BC.getSkin() === 'genshin') {
-        this._drawTeyvatBackdrop(ctx, false);
-      } else {
-        ctx.fillStyle = BC.COLORS.BLACK;
-        ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
-      }
+      this._renderBackdrop(ctx, false);
 
       BC.drawText(ctx, 'HI-SCORE', 64, 18, '#D82800');
       BC.drawText(ctx, String(this.hiScore), 152, 18, '#FC9838');
@@ -1415,7 +1445,7 @@
       }
 
       // Horizontal Divider & TOTAL
-      ctx.fillStyle = BC.getSkin() === 'genshin' ? BC.COLORS.GOLD_TRIM : '#FCFCFC';
+      ctx.fillStyle = BC.getSkin() !== 'classic' ? BC.COLORS.GOLD_TRIM : '#FCFCFC';
       ctx.fillRect(64, 178, 128, 1.5);
       BC.drawText(ctx, 'TOTAL', 52, 188, '#FCFCFC');
 
@@ -1435,12 +1465,7 @@
     }
 
     _renderGameOverScreen(ctx) {
-      if (BC.getSkin() === 'genshin') {
-        this._drawTeyvatBackdrop(ctx, false);
-      } else {
-        ctx.fillStyle = BC.COLORS.BLACK;
-        ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
-      }
+      this._renderBackdrop(ctx, false);
       BC.drawBrickWord(ctx, 'GAME', 128, 68, 6, true);
       BC.drawBrickWord(ctx, 'OVER', 128, 124, 6, true);
     }
