@@ -39,8 +39,17 @@
       this.tiles[25][13] = BC.TILE.EAGLE;
     }
 
-    fortifyBase(tileType) {
+    fortifyBase(tileType, activeTanks = null) {
+      const S = BC.SUBTILE_SIZE;
       for (const [bx, by] of BC.BASE_WALL_COORDS) {
+        if (activeTanks && activeTanks.length > 0) {
+          const wx = bx * S;
+          const wy = by * S;
+          const blocked = activeTanks.some((t) =>
+            t.alive && rectsOverlap(t.x, t.y, t.w, t.h, wx, wy, S, S)
+          );
+          if (blocked) continue;
+        }
         this.tiles[by][bx] = tileType;
         this.brickMasks[by][bx] = tileType === BC.TILE.BRICK ? BC.BRICK_FULL : 0;
       }
@@ -82,10 +91,20 @@
     }
 
     isTankOnIce(x, y, w, h) {
-      const cx = Math.floor((x + w / 2) / BC.SUBTILE_SIZE);
-      const cy = Math.floor((y + h / 2) / BC.SUBTILE_SIZE);
-      if (cx < 0 || cx >= BC.GRID_SUBTILES || cy < 0 || cy >= BC.GRID_SUBTILES) return false;
-      return this.tiles[cy][cx] === BC.TILE.ICE;
+      const S = BC.SUBTILE_SIZE;
+      const minTX = Math.max(0, Math.floor(x / S));
+      const maxTX = Math.min(BC.GRID_SUBTILES - 1, Math.floor((x + w - 0.001) / S));
+      const minTY = Math.max(0, Math.floor(y / S));
+      const maxTY = Math.min(BC.GRID_SUBTILES - 1, Math.floor((y + h - 0.001) / S));
+
+      for (let ty = minTY; ty <= maxTY; ty++) {
+        for (let tx = minTX; tx <= maxTX; tx++) {
+          if (this.tiles[ty][tx] === BC.TILE.ICE) {
+            return true;
+          }
+        }
+      }
+      return false;
     }
 
     // Apply bullet impact on terrain.
@@ -118,8 +137,11 @@
       for (let ty = eMinTY; ty <= eMaxTY; ty++) {
         for (let tx = eMinTX; tx <= eMaxTX; tx++) {
           if (this.tiles[ty][tx] === BC.TILE.EAGLE) {
-            this.eagleAlive = false;
-            return { type: 'eagle' };
+            if (this.eagleAlive) {
+              this.eagleAlive = false;
+              return { type: 'eagle' };
+            }
+            return { type: 'steel_clang' };
           }
         }
       }

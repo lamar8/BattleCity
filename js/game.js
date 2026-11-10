@@ -123,6 +123,7 @@
             'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
             'Space', 'Enter', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
             'KeyJ', 'KeyK', 'KeyZ', 'KeyP', 'Escape',
+            'Slash', 'KeyL', 'KeyC', 'Numpad0', 'Numpad1', 'ShiftRight',
           ].includes(code)
         ) {
           e.preventDefault();
@@ -142,19 +143,35 @@
         BC.Audio.updateEngine(false, false);
       });
 
-      // Mouse support for Map Editor
-      this.canvas.addEventListener('mousedown', (e) => {
-        BC.Audio.unlock();
-        if (this.state !== STATE.EDITOR) return;
+      // Mouse support for Map Editor (click & continuous drag-paint)
+      const getEditorCell = (e) => {
         const rect = this.canvas.getBoundingClientRect();
         const scaleX = BC.SCREEN_WIDTH / rect.width;
         const scaleY = BC.SCREEN_HEIGHT / rect.height;
         const x = (e.clientX - rect.left) * scaleX - BC.BORDER_LEFT;
         const y = (e.clientY - rect.top) * scaleY - BC.BORDER_TOP;
         if (x >= 0 && x < BC.FIELD_SIZE && y >= 0 && y < BC.FIELD_SIZE) {
-          const bx = Math.floor(x / 16);
-          const by = Math.floor(y / 16);
-          this.editor.setBlockAt(bx, by, e.button === 2);
+          return { bx: Math.floor(x / 16), by: Math.floor(y / 16) };
+        }
+        return null;
+      };
+
+      this.canvas.addEventListener('mousedown', (e) => {
+        BC.Audio.unlock();
+        if (this.state !== STATE.EDITOR) return;
+        const cell = getEditorCell(e);
+        if (cell) {
+          this.editor.setBlockAt(cell.bx, cell.by, e.button === 2);
+        }
+      });
+
+      this.canvas.addEventListener('mousemove', (e) => {
+        if (this.state !== STATE.EDITOR) return;
+        if (e.buttons === 1 || e.buttons === 2) {
+          const cell = getEditorCell(e);
+          if (cell) {
+            this.editor.paintBlockAt(cell.bx, cell.by, e.buttons === 2);
+          }
         }
       });
 
@@ -506,6 +523,7 @@
       this.state = STATE.GAME_OVER_FALL;
       this.gameOverY = 224;
       this.gameOverHold = 0;
+      this.shovelTimer = 0;
       BC.Audio.updateEngine(false, false);
     }
 
@@ -514,12 +532,16 @@
 
       // 1. Shovel fortification timer
       if (this.shovelTimer > 0) {
-        this.shovelTimer--;
-        if (this.shovelTimer === 0) {
-          this.map.fortifyBase(BC.TILE.BRICK);
-        } else if (this.shovelTimer <= BC.FRAMES.SHOVEL_BLINK_START) {
-          const useSteel = Math.floor(this.shovelTimer / 10) % 2 === 0;
-          this.map.fortifyBase(useSteel ? BC.TILE.STEEL : BC.TILE.BRICK);
+        if (!this.map.eagleAlive) {
+          this.shovelTimer = 0;
+        } else {
+          this.shovelTimer--;
+          if (this.shovelTimer === 0) {
+            this.map.fortifyBase(BC.TILE.BRICK, allTanks);
+          } else if (this.shovelTimer <= BC.FRAMES.SHOVEL_BLINK_START) {
+            const useSteel = Math.floor(this.shovelTimer / 10) % 2 === 0;
+            this.map.fortifyBase(useSteel ? BC.TILE.STEEL : BC.TILE.BRICK, allTanks);
+          }
         }
       }
 
@@ -679,18 +701,16 @@
 
         const moved = e.tryMove(e.dir, this.map, allTanks);
         if (!moved) {
-          if (e.aiTurnCooldown <= 0) {
-            e.dir = this._chooseEnemyDirection(e);
-            e.aiTurnCooldown = 16;
-          }
+          e.dir = this._chooseEnemyDirection(e, allTanks);
+          e.aiTurnCooldown = 10;
         } else if (
           e.aiTurnCooldown <= 0 &&
           Math.abs(e.x - Math.round(e.x / 16) * 16) < 0.6 &&
           Math.abs(e.y - Math.round(e.y / 16) * 16) < 0.6 &&
           Math.random() < 0.045
         ) {
-          e.dir = this._chooseEnemyDirection(e);
-          e.aiTurnCooldown = 36;
+          e.dir = this._chooseEnemyDirection(e, allTanks);
+          e.aiTurnCooldown = 32 + Math.floor(Math.random() * 16);
         }
 
         // Fire decision
@@ -797,7 +817,19 @@
       return null;
     }
 
-    _chooseEnemyDirection(enemy) {
+    _canEnemyStep(enemy, dir, allTanks) {
+      const vec = BC.DIR_VEC[dir];
+      const nx = enemy.x + vec.x * 4;
+      const ny = enemy.y + vec.y * 4;
+      return !enemy._blockedAt(nx, ny, this.map, allTanks);
+    }
+
+    _chooseEnemyDirection(enemy, allTanks = null) {
+      const otherDirs = [0, 1, 2, 3].filter((d) => d !== enemy.dir);
+      const openDirs = allTanks
+        ? otherDirs.filter((d) => this._canEnemyStep(enemy, d, allTanks))
+        : otherDirs;
+
       // Tactical bias: steer toward Eagle Base (96, 192) or alive player
       const r = Math.random();
       let targetX = 96;
@@ -811,7 +843,7 @@
         }
       }
 
-      if (r < 0.7) {
+      if (r < 0.72) {
         const dx = targetX - enemy.x;
         const dy = targetY - enemy.y;
         const candidates = [];
@@ -822,15 +854,24 @@
           candidates.push(dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
           candidates.push(dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
         }
-        // Prefer directions different from blocked current direction
+
+        // 1st priority: tactical candidate that is unblocked
         for (const d of candidates) {
-          if (d !== enemy.dir) return d;
+          if (d !== enemy.dir && openDirs.includes(d)) return d;
         }
       }
 
-      // Random direction (preferring non-current)
-      const dirs = [0, 1, 2, 3].filter((d) => d !== enemy.dir);
-      return dirs[Math.floor(Math.random() * dirs.length)];
+      // 2nd priority: any other unblocked direction
+      if (openDirs.length > 0) {
+        return openDirs[Math.floor(Math.random() * openDirs.length)];
+      }
+
+      // Fallback if all 3 alternatives are blocked: reverse or random
+      const reverseDir = (enemy.dir + 2) % 4;
+      if (allTanks && this._canEnemyStep(enemy, reverseDir, allTanks)) {
+        return reverseDir;
+      }
+      return otherDirs[Math.floor(Math.random() * otherDirs.length)];
     }
 
     _updateBullets() {
@@ -864,6 +905,10 @@
               b.alive = false;
               other.alive = false;
               hitOtherBullet = true;
+              const mx = (b.x + other.x) / 2 + b.w / 2;
+              const my = (b.y + other.y) / 2 + b.h / 2;
+              this.explosions.push(new BC.Explosion(mx, my, false));
+              BC.Audio.playHitSteel();
               break;
             }
           }
@@ -1024,9 +1069,11 @@
           BC.Audio.playPowerupPick();
           break;
         case BC.POWERUP.SHOVEL:
-          this.shovelTimer = BC.FRAMES.SHOVEL_STEEL;
-          this.map.fortifyBase(BC.TILE.STEEL);
-          BC.Audio.playPowerupPick();
+          if (this.map.eagleAlive) {
+            this.shovelTimer = BC.FRAMES.SHOVEL_STEEL;
+            this.map.fortifyBase(BC.TILE.STEEL, this._getAllAliveTanks());
+            BC.Audio.playPowerupPick();
+          }
           break;
         case BC.POWERUP.STAR:
           player.tier = Math.min(3, player.tier + 1);
@@ -1037,6 +1084,10 @@
           BC.Audio.playExplodeEnemy();
           for (const e of this.enemies) {
             if (!e.alive) continue;
+            if (e.isBonus) {
+              e.isBonus = false;
+              this._spawnPowerUp();
+            }
             e.alive = false;
             this.explosions.push(new BC.Explosion(e.x + 8, e.y + 8, true));
           }
@@ -1592,11 +1643,11 @@
         accumulator -= stepMs;
       }
 
-      while (audioAccumulator >= BASE_STEP_MS) {
+      while (audioAccumulator >= stepMs) {
         if (typeof BC.Audio.tick === 'function') {
           BC.Audio.tick();
         }
-        audioAccumulator -= BASE_STEP_MS;
+        audioAccumulator -= stepMs;
       }
 
       game.render();

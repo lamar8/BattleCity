@@ -127,7 +127,11 @@
       const screenWrap = document.getElementById('screen-wrap');
       const touchPad = document.getElementById('touch-pad');
 
+      let lastCustomState = null;
       function populateStages() {
+        const hasCustom = BC.hasCustomStage();
+        if (lastCustomState === hasCustom && stageSelect.children.length > 0) return;
+        lastCustomState = hasCustom;
         const prev = stageSelect.value;
         stageSelect.innerHTML = '';
         for (let s = 1; s <= BC.TOTAL_CLASSIC_STAGES; s++) {
@@ -136,7 +140,7 @@
           opt.textContent = `第 ${s} 关`;
           stageSelect.appendChild(opt);
         }
-        if (BC.hasCustomStage()) {
+        if (hasCustom) {
           const opt = document.createElement('option');
           opt.value = String(BC.TOTAL_CLASSIC_STAGES + 1);
           opt.textContent = '自定义关卡';

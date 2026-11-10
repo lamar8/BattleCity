@@ -119,14 +119,30 @@
 
     setBlockAt(bx, by, erase = false) {
       if (bx < 0 || bx >= BC.GRID_BLOCKS || by < 0 || by >= BC.GRID_BLOCKS) return;
+      const prevX = this.cursorX;
+      const prevY = this.cursorY;
       this.cursorX = bx;
       this.cursorY = by;
       if (this._isProtectedBlock(bx, by)) return;
       if (erase) {
         this._applyPattern(bx, by, [T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY]);
-      } else {
+      } else if (prevX === bx && prevY === by) {
         this.cycleAtCursor();
+      } else {
+        this.paintBlockAt(bx, by, false);
+        BC.Audio.playHitBrick();
       }
+    }
+
+    paintBlockAt(bx, by, erase = false) {
+      if (bx < 0 || bx >= BC.GRID_BLOCKS || by < 0 || by >= BC.GRID_BLOCKS) return;
+      this.cursorX = bx;
+      this.cursorY = by;
+      if (this._isProtectedBlock(bx, by)) return;
+      const cells = erase
+        ? [T.EMPTY, T.EMPTY, T.EMPTY, T.EMPTY]
+        : PATTERNS[this.patternIdx].cells;
+      this._applyPattern(bx, by, cells);
     }
 
     _readBlockPattern(bx, by) {
