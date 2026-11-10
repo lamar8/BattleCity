@@ -1,0 +1,1405 @@
+(function (global) {
+  'use strict';
+
+  const BC = (global.BattleCity = global.BattleCity || {});
+
+  const HI_SCORE_KEY = 'battle_city_hi_score_v1';
+
+  const STATE = {
+    TITLE: 'TITLE',
+    STAGE_SELECT: 'STAGE_SELECT',
+    PLAYING: 'PLAYING',
+    STAGE_CLEAR_DELAY: 'STAGE_CLEAR_DELAY',
+    GAME_OVER_FALL: 'GAME_OVER_FALL',
+    TALLY: 'TALLY',
+    GAME_OVER_SCREEN: 'GAME_OVER_SCREEN',
+    EDITOR: 'EDITOR',
+  };
+
+  class BattleCityGame {
+    constructor(canvas) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+      this.ctx.imageSmoothingEnabled = false;
+
+      this.state = STATE.TITLE;
+      this.globalFrame = 0;
+      this.speedScale = 1.0;
+
+      // Persistent High Score (NES default starts at 20000)
+      this.hiScore = this._loadHiScore();
+      this.lastP1Score = 0;
+
+      // Menu / Transition state
+      this.menuIndex = 0; // 0 = 1P, 1 = 2P, 2 = CONSTRUCTION
+      this.titleSlideY = 240;
+      this.isTwoPlayer = false;
+      this.stage = 1;
+      this.canBrowseStage = false;
+      this.curtainProgress = 0; // 0 = open, 120 = closed
+      this.curtainPhase = 'closing'; // 'closing' | 'wait' | 'opening'
+      this.curtainWaitTimer = 0;
+
+      // Gameplay Entities
+      this.map = new BC.MapGrid(BC.getStageGrid(1));
+      this.players = []; // metadata: { lives, score, tier, nextLifeScore, kills: [0,0,0,0], tank, respawnTimer }
+      this.enemies = [];
+      this.bullets = [];
+      this.powerUps = [];
+      this.spawnStars = [];
+      this.explosions = [];
+      this.floatingScores = [];
+
+      // Stage runtime counters
+      this.enemyQueue = [];
+      this.spawnedCount = 0;
+      this.spawnTimer = 0;
+      this.spawnPosIndex = 0;
+      this.freezeTimer = 0;
+      this.shovelTimer = 0;
+      this.paused = false;
+      this.stageClearTimer = 0;
+      this.gameOverY = 224;
+      this.gameOverHold = 0;
+      this.gameOverAfterTally = false;
+      this.gameOverScreenTimer = 0;
+
+      // Tally animation state
+      this.tallyStep = 0; // 0..3 enemy rows, 4 = done/bonus
+      this.tallyCount = 0;
+      this.tallyTick = 0;
+      this.tallyDoneWait = 0;
+      this.tallyBonusAwarded = false;
+
+      // Map Editor
+      this.editor = new BC.MapEditor();
+
+      // Input state
+      this.keysDown = new Set();
+      this.keysPressed = new Set();
+      this.touchState = { up: false, down: false, left: false, right: false, fire: false };
+
+      this._bindInputs();
+      this._notifyUI();
+    }
+
+    _loadHiScore() {
+      try {
+        const val = parseInt(global.localStorage.getItem(HI_SCORE_KEY), 10);
+        return Number.isFinite(val) && val >= 20000 ? val : 20000;
+      } catch (_) {
+        return 20000;
+      }
+    }
+
+    _saveHiScore() {
+      try {
+        global.localStorage.setItem(HI_SCORE_KEY, String(this.hiScore));
+      } catch (_) {}
+    }
+
+    _updateHiScore(score) {
+      if (score > this.hiScore) {
+        this.hiScore = score;
+        this._saveHiScore();
+      }
+    }
+
+    _bindInputs() {
+      global.addEventListener('keydown', (e) => {
+        BC.Audio.unlock();
+        const code = e.code;
+        if (
+          [
+            'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+            'Space', 'Enter', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
+            'KeyJ', 'KeyK', 'KeyZ', 'KeyP', 'Escape',
+          ].includes(code)
+        ) {
+          e.preventDefault();
+        }
+        if (!this.keysDown.has(code)) {
+          this.keysPressed.add(code);
+        }
+        this.keysDown.add(code);
+      });
+
+      global.addEventListener('keyup', (e) => {
+        this.keysDown.delete(e.code);
+      });
+
+      global.addEventListener('blur', () => {
+        this.keysDown.clear();
+        BC.Audio.updateEngine(false, false);
+      });
+
+      // Mouse support for Map Editor
+      this.canvas.addEventListener('mousedown', (e) => {
+        BC.Audio.unlock();
+        if (this.state !== STATE.EDITOR) return;
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = BC.SCREEN_WIDTH / rect.width;
+        const scaleY = BC.SCREEN_HEIGHT / rect.height;
+        const x = (e.clientX - rect.left) * scaleX - BC.BORDER_LEFT;
+        const y = (e.clientY - rect.top) * scaleY - BC.BORDER_TOP;
+        if (x >= 0 && x < BC.FIELD_SIZE && y >= 0 && y < BC.FIELD_SIZE) {
+          const bx = Math.floor(x / 16);
+          const by = Math.floor(y / 16);
+          this.editor.setBlockAt(bx, by, e.button === 2);
+        }
+      });
+
+      this.canvas.addEventListener('contextmenu', (e) => {
+        if (this.state === STATE.EDITOR) e.preventDefault();
+      });
+    }
+
+    setTouchInput(action, active) {
+      BC.Audio.unlock();
+      if (active && !this.touchState[action]) {
+        if (action === 'up') this.keysPressed.add('ArrowUp');
+        if (action === 'down') this.keysPressed.add('ArrowDown');
+        if (action === 'left') this.keysPressed.add('ArrowLeft');
+        if (action === 'right') this.keysPressed.add('ArrowRight');
+        if (action === 'fire') this.keysPressed.add('Space');
+      }
+      this.touchState[action] = active;
+    }
+
+    _justPressed(...codes) {
+      return codes.some((c) => this.keysPressed.has(c));
+    }
+
+    _isHeld(...codes) {
+      return codes.some((c) => this.keysDown.has(c));
+    }
+
+    // External UI hook for quick stage jump / reset / pause
+    jumpToStage(stageNum, twoPlayer = null) {
+      BC.Audio.unlock();
+      if (twoPlayer !== null) {
+        this.isTwoPlayer = twoPlayer;
+      }
+      this._initPlayers();
+      this.stage = Math.max(1, Math.min(BC.TOTAL_CLASSIC_STAGES + (BC.hasCustomStage() ? 1 : 0), stageNum));
+      this._enterStageSelect(false);
+    }
+
+    returnToTitle() {
+      BC.Audio.updateEngine(false, false);
+      this.state = STATE.TITLE;
+      this.titleSlideY = 0;
+      this.paused = false;
+      this._notifyUI();
+    }
+
+    togglePause() {
+      if (this.state === STATE.PLAYING) {
+        this.paused = !this.paused;
+        BC.Audio.playPause();
+        if (this.paused) BC.Audio.updateEngine(false, false);
+        this._notifyUI();
+      }
+    }
+
+    setSpeedScale(scale) {
+      this.speedScale = Math.max(0.5, Math.min(1.5, Number(scale) || 1.0));
+    }
+
+    _notifyUI() {
+      if (typeof this.onStateChange === 'function') {
+        this.onStateChange({
+          state: this.state,
+          stage: this.stage,
+          paused: this.paused,
+          isTwoPlayer: this.isTwoPlayer,
+          hasCustom: BC.hasCustomStage(),
+        });
+      }
+    }
+
+    // =======================================================================
+    // Main Fixed-Timestep 60Hz Update
+    // =======================================================================
+    update() {
+      this.globalFrame++;
+
+      switch (this.state) {
+        case STATE.TITLE:
+          this._updateTitle();
+          break;
+        case STATE.STAGE_SELECT:
+          this._updateStageSelect();
+          break;
+        case STATE.PLAYING:
+          this._updatePlaying();
+          break;
+        case STATE.STAGE_CLEAR_DELAY:
+          this._updateStageClearDelay();
+          break;
+        case STATE.GAME_OVER_FALL:
+          this._updateGameOverFall();
+          break;
+        case STATE.TALLY:
+          this._updateTally();
+          break;
+        case STATE.GAME_OVER_SCREEN:
+          this._updateGameOverScreen();
+          break;
+        case STATE.EDITOR:
+          this._updateEditor();
+          break;
+      }
+
+      this.keysPressed.clear();
+    }
+
+    // =======================================================================
+    // TITLE SCREEN
+    // =======================================================================
+    _updateTitle() {
+      BC.Audio.updateEngine(false, false);
+
+      if (this.titleSlideY > 0) {
+        if (this._justPressed('Enter', 'Space', 'KeyJ', 'KeyZ')) {
+          this.titleSlideY = 0;
+          return;
+        }
+        this.titleSlideY = Math.max(0, this.titleSlideY - 3);
+        return;
+      }
+
+      if (this._justPressed('ArrowUp', 'KeyW')) {
+        this.menuIndex = (this.menuIndex + 2) % 3;
+        BC.Audio.playScoreTick();
+      } else if (this._justPressed('ArrowDown', 'KeyS')) {
+        this.menuIndex = (this.menuIndex + 1) % 3;
+        BC.Audio.playScoreTick();
+      } else if (this._justPressed('Enter', 'Space', 'KeyJ', 'KeyZ')) {
+        if (this.menuIndex === 0 || this.menuIndex === 1) {
+          this.isTwoPlayer = this.menuIndex === 1;
+          this.stage = 1;
+          this._initPlayers();
+          this._enterStageSelect(true);
+        } else {
+          this.editor.reset();
+          this.state = STATE.EDITOR;
+          this._notifyUI();
+        }
+      }
+    }
+
+    _initPlayers() {
+      const count = this.isTwoPlayer ? 2 : 1;
+      this.players = [];
+      for (let i = 0; i < count; i++) {
+        this.players.push({
+          index: i,
+          lives: 3, // HUD displays lives - 1 = 2 spare tanks
+          score: 0,
+          tier: 0,
+          nextLifeScore: 20000,
+          kills: [0, 0, 0, 0],
+          tank: null,
+          respawnTimer: 0,
+          pendingStar: null,
+        });
+      }
+    }
+
+    // =======================================================================
+    // STAGE SELECT & CURTAIN
+    // =======================================================================
+    _enterStageSelect(allowBrowse) {
+      this.canBrowseStage = allowBrowse;
+      this.state = STATE.STAGE_SELECT;
+      this.curtainProgress = 0;
+      this.curtainPhase = 'closing';
+      this.curtainWaitTimer = allowBrowse ? 0 : 75;
+      this.paused = false;
+      BC.Audio.updateEngine(false, false);
+      this._notifyUI();
+    }
+
+    _getMaxSelectableStage() {
+      return BC.hasCustomStage() ? BC.TOTAL_CLASSIC_STAGES + 1 : BC.TOTAL_CLASSIC_STAGES;
+    }
+
+    _updateStageSelect() {
+      if (this.curtainPhase === 'closing') {
+        this.curtainProgress = Math.min(120, this.curtainProgress + 6);
+        if (this.curtainProgress >= 120) {
+          this.curtainPhase = 'wait';
+          if (!this.canBrowseStage) {
+            this._prepareStageEntities();
+            BC.Audio.playIntro();
+          }
+        }
+        return;
+      }
+
+      if (this.curtainPhase === 'wait') {
+        if (this.canBrowseStage) {
+          const maxStage = this._getMaxSelectableStage();
+          if (this._justPressed('ArrowUp', 'KeyW', 'ArrowRight', 'KeyD')) {
+            this.stage = this.stage >= maxStage ? 1 : this.stage + 1;
+            BC.Audio.playScoreTick();
+            this._notifyUI();
+          } else if (this._justPressed('ArrowDown', 'KeyS', 'ArrowLeft', 'KeyA')) {
+            this.stage = this.stage <= 1 ? maxStage : this.stage - 1;
+            BC.Audio.playScoreTick();
+            this._notifyUI();
+          } else if (this._justPressed('Enter', 'Space', 'KeyJ', 'KeyZ')) {
+            this.canBrowseStage = false;
+            this._prepareStageEntities();
+            BC.Audio.playIntro();
+            this.curtainPhase = 'opening';
+          } else if (this._justPressed('Escape')) {
+            this.returnToTitle();
+          }
+        } else {
+          this.curtainWaitTimer--;
+          if (this.curtainWaitTimer <= 0) {
+            this.curtainPhase = 'opening';
+          }
+        }
+        return;
+      }
+
+      if (this.curtainPhase === 'opening') {
+        this.curtainProgress = Math.max(0, this.curtainProgress - 6);
+        if (this.curtainProgress <= 0) {
+          this.state = STATE.PLAYING;
+          this._notifyUI();
+        }
+      }
+    }
+
+    _prepareStageEntities() {
+      this.map = new BC.MapGrid(BC.getStageGrid(this.stage));
+      this.enemies = [];
+      this.bullets = [];
+      this.powerUps = [];
+      this.spawnStars = [];
+      this.explosions = [];
+      this.floatingScores = [];
+
+      this.enemyQueue = BC.buildWaveQueue(this.stage);
+      this.spawnedCount = 0;
+      this.spawnTimer = 15;
+      this.spawnPosIndex = 0;
+      this.freezeTimer = 0;
+      this.shovelTimer = 0;
+      this.paused = false;
+      this.gameOverAfterTally = false;
+
+      // Reset per-stage kills & reset each player to 3 lives at stage start
+      for (const p of this.players) {
+        p.lives = 3;
+        p.kills = [0, 0, 0, 0];
+        p.tank = null;
+        p.pendingStar = null;
+        p.respawnTimer = 0;
+        const sp = BC.PLAYER_SPAWNS[p.index];
+        p.tank = new BC.Tank({
+          isPlayer: true,
+          playerIndex: p.index,
+          x: sp.x,
+          y: sp.y,
+          dir: BC.DIR.UP,
+          tier: p.tier,
+          shieldTimer: BC.FRAMES.SPAWN_SHIELD_PLAYER,
+        });
+      }
+      this._notifyUI();
+    }
+
+    // =======================================================================
+    // MAIN GAMEPLAY LOOP
+    // =======================================================================
+    _updatePlaying() {
+      if (this._justPressed('KeyP', 'Escape', 'Enter')) {
+        this.togglePause();
+        return;
+      }
+      if (this.paused) return;
+
+      this._stepWorld(true);
+
+      // Victory condition: queue exhausted + no enemy stars + no alive enemies
+      const activeEnemyStars = this.spawnStars.some((s) => !s.isPlayer && s.alive);
+      if (
+        this.enemyQueue.length === 0 &&
+        !activeEnemyStars &&
+        this.enemies.every((e) => !e.alive)
+      ) {
+        this.state = STATE.STAGE_CLEAR_DELAY;
+        this.stageClearTimer = BC.FRAMES.STAGE_CLEAR_DELAY;
+        return;
+      }
+
+      // Defeat condition: all players dead with 0 lives
+      const anyPlayerAliveOrRespawning = this.players.some(
+        (p) => p.lives > 0 || (p.tank && p.tank.alive) || (p.pendingStar && p.pendingStar.alive)
+      );
+      if (!anyPlayerAliveOrRespawning) {
+        this._triggerGameOver();
+      }
+    }
+
+    _updateStageClearDelay() {
+      this._stepWorld(true);
+      this.stageClearTimer--;
+      if (this.stageClearTimer <= 0) {
+        BC.Audio.updateEngine(false, false);
+        this._enterTally(false);
+      }
+    }
+
+    _updateGameOverFall() {
+      // Players cannot act during Game Over text rising, enemies keep moving for drama
+      this._stepWorld(false);
+      if (this.gameOverY > 112) {
+        this.gameOverY = Math.max(112, this.gameOverY - 1.5);
+      } else {
+        this.gameOverHold++;
+        if (this.gameOverHold >= 60) {
+          BC.Audio.updateEngine(false, false);
+          this._enterTally(true);
+        }
+      }
+    }
+
+    _triggerGameOver() {
+      if (this.state === STATE.GAME_OVER_FALL) return;
+      this.state = STATE.GAME_OVER_FALL;
+      this.gameOverY = 224;
+      this.gameOverHold = 0;
+      BC.Audio.updateEngine(false, false);
+    }
+
+    _stepWorld(allowPlayerControl) {
+      const allTanks = this._getAllAliveTanks();
+
+      // 1. Shovel fortification timer
+      if (this.shovelTimer > 0) {
+        this.shovelTimer--;
+        if (this.shovelTimer === 0) {
+          this.map.fortifyBase(BC.TILE.BRICK);
+        } else if (this.shovelTimer <= BC.FRAMES.SHOVEL_BLINK_START) {
+          const useSteel = Math.floor(this.shovelTimer / 10) % 2 === 0;
+          this.map.fortifyBase(useSteel ? BC.TILE.STEEL : BC.TILE.BRICK);
+        }
+      }
+
+      // 2. Freeze timer
+      if (this.freezeTimer > 0) {
+        this.freezeTimer--;
+      }
+
+      // 3. Player Respawns & Controls
+      let anyPlayerActive = false;
+      let anyPlayerMoving = false;
+
+      for (const p of this.players) {
+        if (!p.tank || !p.tank.alive) {
+          if (p.pendingStar && p.pendingStar.alive) {
+            if (p.pendingStar.update()) {
+              const sp = BC.PLAYER_SPAWNS[p.index];
+              p.tank = new BC.Tank({
+                isPlayer: true,
+                playerIndex: p.index,
+                x: sp.x,
+                y: sp.y,
+                dir: BC.DIR.UP,
+                tier: p.tier,
+                shieldTimer: BC.FRAMES.SPAWN_SHIELD_PLAYER,
+              });
+              p.pendingStar = null;
+            }
+          } else if (p.lives > 0) {
+            p.respawnTimer--;
+            if (p.respawnTimer <= 0) {
+              const sp = BC.PLAYER_SPAWNS[p.index];
+              p.pendingStar = new BC.SpawnStar({
+                x: sp.x,
+                y: sp.y,
+                isPlayer: true,
+                playerIndex: p.index,
+                tier: p.tier,
+              });
+              this.spawnStars.push(p.pendingStar);
+            }
+          }
+          continue;
+        }
+
+        const t = p.tank;
+        anyPlayerActive = true;
+        if (t.shieldTimer > 0) t.shieldTimer--;
+        if (t.stunTimer > 0) t.stunTimer--;
+        if (t.shootCooldown > 0) t.shootCooldown--;
+        t.isMoving = false;
+
+        if (allowPlayerControl && t.stunTimer <= 0) {
+          const ctrl = this._readPlayerControls(p.index);
+          if (ctrl.dir !== null) {
+            t.tryMove(ctrl.dir, this.map, allTanks);
+            anyPlayerMoving = true;
+            if (this.map.isTankOnIce(t.x, t.y, t.w, t.h)) {
+              t.slideDir = ctrl.dir;
+              t.slideTimer = BC.FRAMES.ICE_SLIDE_FRAMES;
+            } else {
+              t.slideTimer = 0;
+            }
+          } else if (t.slideTimer > 0) {
+            if (this.map.isTankOnIce(t.x, t.y, t.w, t.h)) {
+              t.slideTimer--;
+              t.tryMove(t.slideDir, this.map, allTanks);
+              anyPlayerMoving = true;
+            } else {
+              t.slideTimer = 0;
+            }
+          }
+
+          if (ctrl.fire && t.canFire(this.bullets)) {
+            this.bullets.push(t.createBullet());
+            BC.Audio.playShoot();
+          }
+        }
+      }
+
+      BC.Audio.updateEngine(allowPlayerControl && anyPlayerActive, anyPlayerMoving);
+
+      // 4. Enemy Spawner
+      const maxConcurrent = this.isTwoPlayer ? 6 : 4;
+      const activeEnemyCount =
+        this.enemies.filter((e) => e.alive).length +
+        this.spawnStars.filter((s) => !s.isPlayer && s.alive).length;
+
+      if (this.enemyQueue.length > 0 && activeEnemyCount < maxConcurrent) {
+        this.spawnTimer--;
+        if (this.spawnTimer <= 0) {
+          const spot = this._findClearSpawnSpot(allTanks);
+          if (spot) {
+            const enemyType = this.enemyQueue.shift();
+            const isBonus = BC.BONUS_ENEMY_INDICES.has(this.spawnedCount);
+            this.spawnedCount++;
+            this.spawnStars.push(
+              new BC.SpawnStar({
+                x: spot.x,
+                y: spot.y,
+                isPlayer: false,
+                enemyType,
+                isBonus,
+              })
+            );
+            const romBaseDelay = Math.max(
+              50,
+              190 - this.stage * 4 - (this.isTwoPlayer ? 20 : 0)
+            );
+            this.spawnTimer = activeEnemyCount === 0 ? 60 : romBaseDelay;
+          } else {
+            this.spawnTimer = 25;
+          }
+        }
+      }
+
+      // 5. Update Enemy SpawnStars
+      for (const star of this.spawnStars) {
+        if (!star.alive || star.isPlayer) continue;
+        if (star.update()) {
+          const enemy = new BC.Tank({
+            isPlayer: false,
+            enemyType: star.enemyType,
+            isBonus: star.isBonus,
+            x: star.x,
+            y: star.y,
+            dir: BC.DIR.DOWN,
+          });
+          this.enemies.push(enemy);
+          allTanks.push(enemy);
+        }
+      }
+      this.spawnStars = this.spawnStars.filter((s) => s.alive);
+
+      // 6. Enemy AI Movement & Firing
+      for (const e of this.enemies) {
+        if (!e.alive) continue;
+        if (this.freezeTimer > 0) continue;
+        if (e.shootCooldown > 0) e.shootCooldown--;
+        if (e.aiTurnCooldown > 0) e.aiTurnCooldown--;
+
+        const moved = e.tryMove(e.dir, this.map, allTanks);
+        if (!moved) {
+          if (e.aiTurnCooldown <= 0) {
+            e.dir = this._chooseEnemyDirection(e);
+            e.aiTurnCooldown = 16;
+          }
+        } else if (
+          e.aiTurnCooldown <= 0 &&
+          Math.abs(e.x - Math.round(e.x / 16) * 16) < 0.6 &&
+          Math.abs(e.y - Math.round(e.y / 16) * 16) < 0.6 &&
+          Math.random() < 0.045
+        ) {
+          e.dir = this._chooseEnemyDirection(e);
+          e.aiTurnCooldown = 36;
+        }
+
+        // Fire decision
+        if (e.canFire(this.bullets)) {
+          const chance = e.dir === BC.DIR.DOWN ? 0.025 : 0.014;
+          if (!moved || Math.random() < chance) {
+            this.bullets.push(e.createBullet());
+          }
+        }
+      }
+
+      // 7. Update Bullets (sub-stepped 1px at a time to prevent tunneling)
+      this._updateBullets();
+
+      // 8. Power-ups Pickup & Lifetime
+      for (const pu of this.powerUps) {
+        if (!pu.alive) continue;
+        pu.update();
+        if (!pu.alive) continue;
+        for (const p of this.players) {
+          if (p.tank && p.tank.alive && BC.rectsOverlap(p.tank.x, p.tank.y, 16, 16, pu.x, pu.y, 16, 16)) {
+            this._collectPowerUp(p, pu);
+            break;
+          }
+        }
+      }
+      this.powerUps = this.powerUps.filter((pu) => pu.alive);
+
+      // 9. Explosions & Floating Scores
+      for (const ex of this.explosions) ex.update();
+      this.explosions = this.explosions.filter((ex) => ex.alive);
+
+      for (const fs of this.floatingScores) fs.update();
+      this.floatingScores = this.floatingScores.filter((fs) => fs.alive);
+
+      // Clean up dead enemies
+      this.enemies = this.enemies.filter((e) => e.alive);
+    }
+
+    _readPlayerControls(playerIndex) {
+      let dir = null;
+      let fire = false;
+
+      if (playerIndex === 0) {
+        if (!this.isTwoPlayer) {
+          // 1P mode: both WASD & Arrow keys work seamlessly
+          if (this._isHeld('KeyW', 'ArrowUp') || this.touchState.up) dir = BC.DIR.UP;
+          else if (this._isHeld('KeyS', 'ArrowDown') || this.touchState.down) dir = BC.DIR.DOWN;
+          else if (this._isHeld('KeyA', 'ArrowLeft') || this.touchState.left) dir = BC.DIR.LEFT;
+          else if (this._isHeld('KeyD', 'ArrowRight') || this.touchState.right) dir = BC.DIR.RIGHT;
+
+          fire =
+            this._justPressed('Space', 'KeyJ', 'KeyZ', 'KeyK') ||
+            this._isHeld('Space', 'KeyJ', 'KeyZ', 'KeyK') ||
+            this.touchState.fire;
+        } else {
+          // 2P mode P1: WASD + Space / J / F / G
+          if (this._isHeld('KeyW') || this.touchState.up) dir = BC.DIR.UP;
+          else if (this._isHeld('KeyS') || this.touchState.down) dir = BC.DIR.DOWN;
+          else if (this._isHeld('KeyA') || this.touchState.left) dir = BC.DIR.LEFT;
+          else if (this._isHeld('KeyD') || this.touchState.right) dir = BC.DIR.RIGHT;
+
+          fire = this._isHeld('Space', 'KeyJ', 'KeyF', 'KeyG') || this.touchState.fire;
+        }
+      } else {
+        // 2P mode P2: Arrow Keys + Numpad0 / Numpad1 / K / L / Slash / ShiftRight
+        if (this._isHeld('ArrowUp')) dir = BC.DIR.UP;
+        else if (this._isHeld('ArrowDown')) dir = BC.DIR.DOWN;
+        else if (this._isHeld('ArrowLeft')) dir = BC.DIR.LEFT;
+        else if (this._isHeld('ArrowRight')) dir = BC.DIR.RIGHT;
+
+        fire = this._isHeld('Numpad0', 'Numpad1', 'KeyK', 'KeyL', 'Slash', 'ShiftRight');
+      }
+
+      return { dir, fire };
+    }
+
+    _getAllAliveTanks() {
+      const list = [];
+      for (const p of this.players) {
+        if (p.tank && p.tank.alive) list.push(p.tank);
+      }
+      for (const e of this.enemies) {
+        if (e.alive) list.push(e);
+      }
+      return list;
+    }
+
+    _findClearSpawnSpot(allTanks) {
+      for (let i = 0; i < 3; i++) {
+        const idx = (this.spawnPosIndex + i) % 3;
+        const spot = BC.ENEMY_SPAWNS[idx];
+        const blockedByTank = allTanks.some((t) =>
+          BC.rectsOverlap(t.x, t.y, 16, 16, spot.x, spot.y, 16, 16)
+        );
+        const blockedByStar = this.spawnStars.some(
+          (s) => s.alive && BC.rectsOverlap(s.x, s.y, 16, 16, spot.x, spot.y, 16, 16)
+        );
+        if (!blockedByTank && !blockedByStar) {
+          this.spawnPosIndex = (idx + 1) % 3;
+          return spot;
+        }
+      }
+      return null;
+    }
+
+    _chooseEnemyDirection(enemy) {
+      // Tactical bias: steer toward Eagle Base (96, 192) or alive player
+      const r = Math.random();
+      let targetX = 96;
+      let targetY = 192;
+
+      if (r < 0.28) {
+        const aliveP = this.players.find((p) => p.tank && p.tank.alive);
+        if (aliveP) {
+          targetX = aliveP.tank.x;
+          targetY = aliveP.tank.y;
+        }
+      }
+
+      if (r < 0.7) {
+        const dx = targetX - enemy.x;
+        const dy = targetY - enemy.y;
+        const candidates = [];
+        if (Math.abs(dy) >= Math.abs(dx)) {
+          candidates.push(dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
+          candidates.push(dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
+        } else {
+          candidates.push(dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
+          candidates.push(dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
+        }
+        // Prefer directions different from blocked current direction
+        for (const d of candidates) {
+          if (d !== enemy.dir) return d;
+        }
+      }
+
+      // Random direction (preferring non-current)
+      const dirs = [0, 1, 2, 3].filter((d) => d !== enemy.dir);
+      return dirs[Math.floor(Math.random() * dirs.length)];
+    }
+
+    _updateBullets() {
+      for (const b of this.bullets) {
+        if (!b.alive) continue;
+        const vec = BC.DIR_VEC[b.dir];
+        const steps = Math.max(1, Math.ceil(b.speed));
+        const stepSize = b.speed / steps;
+
+        for (let s = 0; s < steps; s++) {
+          if (!b.alive) break;
+          b.x += vec.x * stepSize;
+          b.y += vec.y * stepSize;
+
+          // 1. Playfield boundary
+          if (b.x < 0 || b.y < 0 || b.x + b.w > BC.FIELD_SIZE || b.y + b.h > BC.FIELD_SIZE) {
+            b.alive = false;
+            const cx = Math.max(2, Math.min(BC.FIELD_SIZE - 2, b.x + b.w / 2));
+            const cy = Math.max(2, Math.min(BC.FIELD_SIZE - 2, b.y + b.h / 2));
+            this.explosions.push(new BC.Explosion(cx, cy, false));
+            if (b.isPlayerBullet) BC.Audio.playHitSteel();
+            break;
+          }
+
+          // 2. Opposing bullet-vs-bullet
+          let hitOtherBullet = false;
+          for (const other of this.bullets) {
+            if (!other.alive || other.id === b.id) continue;
+            if (other.isPlayerBullet === b.isPlayerBullet) continue;
+            if (BC.rectsOverlap(b.x, b.y, b.w, b.h, other.x, other.y, other.w, other.h)) {
+              b.alive = false;
+              other.alive = false;
+              hitOtherBullet = true;
+              break;
+            }
+          }
+          if (hitOtherBullet) break;
+
+          // 3. Terrain collision (Brick / Steel / Eagle)
+          const hitTerrain = this.map.hitByBullet(b);
+          if (hitTerrain) {
+            b.alive = false;
+            if (hitTerrain.type === 'eagle') {
+              this.explosions.push(new BC.Explosion(104, 200, true));
+              BC.Audio.playExplodePlayer();
+              this._triggerGameOver();
+            } else {
+              this.explosions.push(new BC.Explosion(b.x + b.w / 2, b.y + b.h / 2, false));
+              if (b.isPlayerBullet) {
+                if (hitTerrain.type === 'steel_clang') BC.Audio.playHitSteel();
+                else BC.Audio.playHitBrick();
+              }
+            }
+            break;
+          }
+
+          // 4. Tank collision
+          if (b.isPlayerBullet) {
+            // Check enemy tanks
+            for (const e of this.enemies) {
+              if (!e.alive) continue;
+              if (BC.rectsOverlap(b.x, b.y, b.w, b.h, e.x, e.y, e.w, e.h)) {
+                b.alive = false;
+                if (e.isBonus) {
+                  e.isBonus = false;
+                  this._spawnPowerUp();
+                }
+                e.hp--;
+                if (e.hp > 0) {
+                  BC.Audio.playHitArmor();
+                } else {
+                  e.alive = false;
+                  this.explosions.push(new BC.Explosion(e.x + 8, e.y + 8, true));
+                  this.floatingScores.push(new BC.FloatingScore(e.x + 8, e.y + 8, e.points));
+                  BC.Audio.playExplodeEnemy();
+                  const shooter = this.players[b.playerIndex];
+                  if (shooter) {
+                    shooter.kills[e.enemyType]++;
+                    this._awardScore(shooter, e.points);
+                  }
+                }
+                break;
+              }
+            }
+            if (!b.alive) break;
+
+            // Check friendly fire stun in 2P mode
+            for (const p of this.players) {
+              if (!p.tank || !p.tank.alive || p.index === b.playerIndex) continue;
+              if (BC.rectsOverlap(b.x, b.y, b.w, b.h, p.tank.x, p.tank.y, 16, 16)) {
+                b.alive = false;
+                if (p.tank.shieldTimer <= 0) {
+                  p.tank.stunTimer = BC.FRAMES.FRIENDLY_STUN;
+                }
+                break;
+              }
+            }
+          } else {
+            // Enemy bullet vs Player tanks
+            for (const p of this.players) {
+              if (!p.tank || !p.tank.alive) continue;
+              if (BC.rectsOverlap(b.x, b.y, b.w, b.h, p.tank.x, p.tank.y, 16, 16)) {
+                b.alive = false;
+                if (p.tank.shieldTimer > 0) {
+                  this.explosions.push(new BC.Explosion(b.x + 2, b.y + 2, false));
+                } else {
+                  p.tank.alive = false;
+                  this.explosions.push(new BC.Explosion(p.tank.x + 8, p.tank.y + 8, true));
+                  BC.Audio.playExplodePlayer();
+                  p.lives--;
+                  p.tier = 0;
+                  p.respawnTimer = 45;
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      this.bullets = this.bullets.filter((b) => b.alive);
+    }
+
+    _awardScore(player, pts) {
+      player.score += pts;
+      this._updateHiScore(player.score);
+      if (player.index === 0) this.lastP1Score = player.score;
+
+      while (player.score >= player.nextLifeScore) {
+        player.lives++;
+        player.nextLifeScore += 20000;
+        BC.Audio.playLifeUp();
+      }
+    }
+
+    _spawnPowerUp() {
+      // Weighted authentic pool (1UP Tank slightly rarer)
+      const pool = [
+        BC.POWERUP.HELMET, BC.POWERUP.HELMET,
+        BC.POWERUP.CLOCK, BC.POWERUP.CLOCK,
+        BC.POWERUP.SHOVEL, BC.POWERUP.SHOVEL,
+        BC.POWERUP.STAR, BC.POWERUP.STAR, BC.POWERUP.STAR,
+        BC.POWERUP.GRENADE, BC.POWERUP.GRENADE,
+        BC.POWERUP.TANK,
+      ];
+      const type = pool[Math.floor(Math.random() * pool.length)];
+
+      // Choose random 8px-aligned coordinate inside playfield avoiding Eagle box
+      let px = 96;
+      let py = 96;
+      for (let tries = 0; tries < 25; tries++) {
+        const gx = 1 + Math.floor(Math.random() * 23);
+        const gy = 1 + Math.floor(Math.random() * 22);
+        const x = gx * 8;
+        const y = gy * 8;
+        if (x >= 80 && x <= 112 && y >= 176) continue;
+        px = x;
+        py = y;
+        break;
+      }
+
+      // Spawning a new bonus replaces any existing uncollected power-up (NES 1:1)
+      this.powerUps = [new BC.PowerUp(type, px, py)];
+      BC.Audio.playPowerupAppear();
+    }
+
+    _collectPowerUp(player, pu) {
+      pu.alive = false;
+      this._awardScore(player, 500);
+      this.floatingScores.push(new BC.FloatingScore(pu.x + 8, pu.y + 8, 500));
+
+      switch (pu.type) {
+        case BC.POWERUP.HELMET:
+          player.tank.shieldTimer = BC.FRAMES.HELMET_SHIELD;
+          BC.Audio.playPowerupPick();
+          break;
+        case BC.POWERUP.CLOCK:
+          this.freezeTimer = BC.FRAMES.FREEZE_ENEMIES;
+          BC.Audio.playPowerupPick();
+          break;
+        case BC.POWERUP.SHOVEL:
+          this.shovelTimer = BC.FRAMES.SHOVEL_STEEL;
+          this.map.fortifyBase(BC.TILE.STEEL);
+          BC.Audio.playPowerupPick();
+          break;
+        case BC.POWERUP.STAR:
+          player.tier = Math.min(3, player.tier + 1);
+          player.tank.applyTier(player.tier);
+          BC.Audio.playPowerupPick();
+          break;
+        case BC.POWERUP.GRENADE:
+          BC.Audio.playExplodeEnemy();
+          for (const e of this.enemies) {
+            if (!e.alive) continue;
+            e.alive = false;
+            this.explosions.push(new BC.Explosion(e.x + 8, e.y + 8, true));
+          }
+          break;
+        case BC.POWERUP.TANK:
+          player.lives++;
+          BC.Audio.playLifeUp();
+          break;
+      }
+    }
+
+    // =======================================================================
+    // SCORE TALLY SCREEN
+    // =======================================================================
+    _enterTally(isGameOver) {
+      this.state = STATE.TALLY;
+      this.gameOverAfterTally = isGameOver;
+      this.tallyStep = 0;
+      this.tallyCount = 0;
+      this.tallyTick = 0;
+      this.tallyDoneWait = 0;
+      this.tallyBonusAwarded = false;
+      this._notifyUI();
+    }
+
+    _updateTally() {
+      const skip = this._justPressed('Enter', 'Space', 'KeyJ', 'KeyZ');
+
+      if (this.tallyStep < 4) {
+        const maxRowCount = Math.max(
+          ...this.players.map((p) => p.kills[this.tallyStep])
+        );
+        if (skip) {
+          this.tallyStep = 4;
+          return;
+        }
+        this.tallyTick++;
+        if (this.tallyTick % 8 === 0) {
+          if (this.tallyCount < maxRowCount) {
+            this.tallyCount++;
+            BC.Audio.playScoreTick();
+          } else {
+            this.tallyStep++;
+            this.tallyCount = 0;
+            this.tallyTick = 0;
+          }
+        }
+      } else {
+        // 2P Bonus check (1000 PTS to higher kill count if strictly greater)
+        if (this.isTwoPlayer && !this.tallyBonusAwarded) {
+          this.tallyBonusAwarded = true;
+          const k1 = this.players[0].kills.reduce((a, b) => a + b, 0);
+          const k2 = this.players[1].kills.reduce((a, b) => a + b, 0);
+          if (k1 > k2) {
+            this._awardScore(this.players[0], 1000);
+            BC.Audio.playBonus();
+          } else if (k2 > k1) {
+            this._awardScore(this.players[1], 1000);
+            BC.Audio.playBonus();
+          }
+        }
+
+        this.tallyDoneWait++;
+        if ((skip && this.tallyDoneWait > 15) || this.tallyDoneWait >= 130) {
+          if (this.gameOverAfterTally) {
+            this.state = STATE.GAME_OVER_SCREEN;
+            this.gameOverScreenTimer = 175;
+            BC.Audio.playGameOver();
+            this._notifyUI();
+          } else {
+            this.stage =
+              this.stage >= BC.TOTAL_CLASSIC_STAGES ? 1 : this.stage + 1;
+            this._enterStageSelect(false);
+          }
+        }
+      }
+    }
+
+    // =======================================================================
+    // GAME OVER SCREEN
+    // =======================================================================
+    _updateGameOverScreen() {
+      this.gameOverScreenTimer--;
+      if (
+        this.gameOverScreenTimer <= 0 ||
+        (this.gameOverScreenTimer < 145 && this._justPressed('Enter', 'Space', 'KeyJ', 'KeyZ'))
+      ) {
+        this.returnToTitle();
+      }
+    }
+
+    // =======================================================================
+    // MAP EDITOR
+    // =======================================================================
+    _updateEditor() {
+      BC.Audio.updateEngine(false, false);
+      this.editor.update();
+
+      if (this._justPressed('ArrowUp', 'KeyW')) this.editor.moveCursor(0, -1);
+      else if (this._justPressed('ArrowDown', 'KeyS')) this.editor.moveCursor(0, 1);
+      else if (this._justPressed('ArrowLeft', 'KeyA')) this.editor.moveCursor(-1, 0);
+      else if (this._justPressed('ArrowRight', 'KeyD')) this.editor.moveCursor(1, 0);
+
+      if (this._justPressed('Space', 'KeyJ', 'KeyZ')) {
+        this.editor.cycleAtCursor();
+      }
+      if (this._justPressed('KeyC')) {
+        this.editor.clearAll();
+        BC.Audio.playPowerupPick();
+      }
+      if (this._justPressed('Enter')) {
+        this.editor.save();
+        BC.Audio.playLifeUp();
+        this.isTwoPlayer = false;
+        this._initPlayers();
+        this.stage = BC.TOTAL_CLASSIC_STAGES + 1;
+        this._enterStageSelect(false);
+      }
+      if (this._justPressed('Escape')) {
+        this.returnToTitle();
+      }
+    }
+
+    // =======================================================================
+    // RENDERING (Native 256 x 240 NES Canvas)
+    // =======================================================================
+    render() {
+      const ctx = this.ctx;
+      ctx.imageSmoothingEnabled = false;
+
+      if (this.state === STATE.TITLE) {
+        this._renderTitle(ctx);
+      } else if (this.state === STATE.STAGE_SELECT) {
+        this._renderStageSelect(ctx);
+      } else if (
+        this.state === STATE.PLAYING ||
+        this.state === STATE.STAGE_CLEAR_DELAY ||
+        this.state === STATE.GAME_OVER_FALL
+      ) {
+        this._renderPlayfield(ctx);
+      } else if (this.state === STATE.TALLY) {
+        this._renderTally(ctx);
+      } else if (this.state === STATE.GAME_OVER_SCREEN) {
+        this._renderGameOverScreen(ctx);
+      } else if (this.state === STATE.EDITOR) {
+        this.editor.draw(ctx);
+      }
+    }
+
+    _renderTitle(ctx) {
+      ctx.fillStyle = BC.COLORS.BLACK;
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+
+      const oy = Math.round(this.titleSlideY);
+
+      // Top Score Banner
+      const p1ScoreStr = String(this.lastP1Score).padStart(2, '0');
+      const hiScoreStr = String(this.hiScore).padStart(2, '0');
+      BC.drawText(ctx, `I- ${p1ScoreStr.padStart(5, ' ')}`, 16, 16 + oy, '#FCFCFC');
+      BC.drawText(ctx, `HI- ${hiScoreStr}`, 136, 16 + oy, '#FCFCFC');
+
+      // Iconic Giant Brick Logos
+      BC.drawBrickWord(ctx, 'BATTLE', 128, 38 + oy, 5, false);
+      BC.drawBrickWord(ctx, 'CITY', 128, 82 + oy, 5, false);
+
+      // Menu Choices
+      const items = ['1 PLAYER', '2 PLAYERS', 'CONSTRUCTION'];
+      for (let i = 0; i < items.length; i++) {
+        BC.drawText(ctx, items[i], 92, 138 + i * 16 + oy, '#FCFCFC');
+      }
+
+      // Tank Selector Cursor
+      if (this.titleSlideY === 0) {
+        const tread = Math.floor(this.globalFrame / 4) % 2;
+        const cursorTank = BC.getTankSprite('P0', BC.COLORS.P1, BC.DIR.RIGHT, tread);
+        ctx.drawImage(cursorTank, 68, 134 + this.menuIndex * 16);
+      }
+
+      // Classic Copyright & Credits
+      BC.drawText(ctx, 'NAMCOT', 128, 194 + oy, '#D82800', 'center');
+      BC.drawText(ctx, '@ 1985 NAMCO LTD.', 128, 208 + oy, '#FCFCFC', 'center');
+      BC.drawText(ctx, 'ALL RIGHTS RESERVED', 128, 220 + oy, '#FCFCFC', 'center');
+    }
+
+    _renderStageSelect(ctx) {
+      if (this.curtainPhase === 'opening') {
+        this._renderPlayfield(ctx);
+      } else {
+        ctx.fillStyle = BC.COLORS.BLACK;
+        ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      }
+
+      // Top and Bottom Gray Curtains
+      ctx.fillStyle = BC.COLORS.HUD_GRAY;
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, this.curtainProgress);
+      ctx.fillRect(
+        0,
+        BC.SCREEN_HEIGHT - this.curtainProgress,
+        BC.SCREEN_WIDTH,
+        this.curtainProgress
+      );
+
+      if (this.curtainPhase === 'wait') {
+        const label =
+          this.stage > BC.TOTAL_CLASSIC_STAGES
+            ? 'STAGE CUSTOM'
+            : `STAGE ${String(this.stage).padStart(2, ' ')}`;
+        BC.drawText(ctx, label, 128, 114, '#000000', 'center');
+        if (this.canBrowseStage) {
+          BC.drawText(ctx, '< SELECT STAGE >', 128, 136, '#3A3A3A', 'center');
+          BC.drawText(ctx, 'PRESS START', 128, 152, '#FCFCFC', 'center');
+        }
+      }
+    }
+
+    _renderPlayfield(ctx) {
+      // Gray NES border & right sidebar
+      ctx.fillStyle = BC.COLORS.HUD_GRAY;
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+
+      // Black 208x208 battlefield
+      ctx.fillStyle = BC.COLORS.BLACK;
+      ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP, BC.FIELD_SIZE, BC.FIELD_SIZE);
+
+      // Under-layer terrain (Brick, Steel, Water, Ice, Eagle)
+      const waterFrame = Math.floor(this.globalFrame / 28) % 2;
+      this.map.drawUnderLayer(ctx, waterFrame);
+
+      // Spawn stars
+      for (const star of this.spawnStars) {
+        star.draw(ctx);
+      }
+
+      // Player & Enemy Tanks
+      for (const p of this.players) {
+        if (p.tank) p.tank.draw(ctx, this.globalFrame);
+      }
+      for (const e of this.enemies) {
+        e.draw(ctx, this.globalFrame);
+      }
+
+      // Bullets
+      for (const b of this.bullets) {
+        b.draw(ctx);
+      }
+
+      // Over-layer Forest Canopy (hides tanks & bullets underneath!)
+      this.map.drawOverLayer(ctx);
+
+      // Power-ups & Explosions & Score Popups render ON TOP of trees
+      for (const pu of this.powerUps) {
+        pu.draw(ctx, this.globalFrame);
+      }
+      for (const ex of this.explosions) {
+        ex.draw(ctx);
+      }
+      for (const fs of this.floatingScores) {
+        fs.draw(ctx);
+      }
+
+      // Pause Banner
+      if (this.paused && Math.floor(this.globalFrame / 18) % 2 === 0) {
+        BC.drawText(
+          ctx,
+          'PAUSE',
+          BC.BORDER_LEFT + BC.FIELD_SIZE / 2,
+          BC.BORDER_TOP + BC.FIELD_SIZE / 2 - 4,
+          '#D82800',
+          'center'
+        );
+      }
+
+      // Rising GAME OVER Banner inside playfield
+      if (this.state === STATE.GAME_OVER_FALL) {
+        const gx = BC.BORDER_LEFT + BC.FIELD_SIZE / 2;
+        const gy = Math.round(this.gameOverY);
+        BC.drawText(ctx, 'GAME', gx, gy, '#D82800', 'center');
+        BC.drawText(ctx, 'OVER', gx, gy + 9, '#D82800', 'center');
+      }
+
+      // Right HUD Sidebar (x: 224..255)
+      this._renderHUD(ctx);
+    }
+
+    _renderHUD(ctx) {
+      const hx = BC.HUD_X + 8; // 232
+
+      // 1. Remaining Enemy Icons (2 columns x 10 rows = up to 20 icons)
+      const remaining = this.enemyQueue.length;
+      for (let i = 0; i < remaining; i++) {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        ctx.drawImage(BC.SPRITES.hudEnemy, hx + col * 8, 24 + row * 8);
+      }
+
+      // 2. Player 1 Lives ("IP" + mini tank + spare lives)
+      const p1Spare = Math.max(0, (this.players[0] ? this.players[0].lives - 1 : 0));
+      BC.drawText(ctx, 'IP', hx, 128, '#000000');
+      ctx.drawImage(BC.SPRITES.hudLife, hx, 136);
+      BC.drawText(ctx, String(p1Spare), hx + 8, 136, '#000000');
+
+      // 3. Player 2 Lives (if 2P)
+      if (this.isTwoPlayer && this.players[1]) {
+        const p2Spare = Math.max(0, this.players[1].lives - 1);
+        BC.drawText(ctx, 'IIP', hx - 4, 152, '#000000');
+        ctx.drawImage(BC.SPRITES.hudLife, hx, 160);
+        BC.drawText(ctx, String(p2Spare), hx + 8, 160, '#000000');
+      }
+
+      // 4. Stage Flag & Stage Number
+      ctx.drawImage(BC.SPRITES.flag, hx, 184);
+      const stLabel = this.stage > BC.TOTAL_CLASSIC_STAGES ? 'EX' : String(this.stage);
+      BC.drawText(ctx, stLabel, hx + 16, 200, '#000000', 'right');
+    }
+
+    _renderTally(ctx) {
+      ctx.fillStyle = BC.COLORS.BLACK;
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+
+      BC.drawText(ctx, 'HI-SCORE', 64, 18, '#D82800');
+      BC.drawText(ctx, String(this.hiScore), 152, 18, '#FC9838');
+
+      const stageText =
+        this.stage > BC.TOTAL_CLASSIC_STAGES ? 'STAGE CUSTOM' : `STAGE ${this.stage}`;
+      BC.drawText(ctx, stageText, 128, 36, '#FCFCFC', 'center');
+
+      // Player Headers & Scores
+      BC.drawText(ctx, 'I-PLAYER', 24, 54, '#D82800');
+      BC.drawText(ctx, String(this.players[0].score), 88, 66, '#FC9838', 'right');
+
+      if (this.isTwoPlayer && this.players[1]) {
+        BC.drawText(ctx, 'II-PLAYER', 168, 54, '#D82800');
+        BC.drawText(ctx, String(this.players[1].score), 232, 66, '#FC9838', 'right');
+      }
+
+      // 4 Enemy Types Tally Rows
+      for (let row = 0; row < 4; row++) {
+        const y = 86 + row * 24;
+        const ptsPer = BC.ENEMY_STATS[row].points;
+        const icon = BC.getTankSprite('E' + row, BC.COLORS.ENEMY_BASIC, BC.DIR.UP, 0);
+        ctx.drawImage(icon, 120, y - 4);
+
+        if (row <= this.tallyStep) {
+          // P1 column
+          const k1Raw = this.players[0].kills[row];
+          const k1 = row < this.tallyStep ? k1Raw : Math.min(k1Raw, this.tallyCount);
+          BC.drawText(ctx, String(k1 * ptsPer), 60, y, '#FCFCFC', 'right');
+          BC.drawText(ctx, 'PTS', 64, y, '#FCFCFC');
+          BC.drawText(ctx, String(k1), 108, y, '#FCFCFC', 'right');
+          BC.drawText(ctx, '<', 110, y, '#FCFCFC');
+
+          // P2 column
+          if (this.isTwoPlayer && this.players[1]) {
+            const k2Raw = this.players[1].kills[row];
+            const k2 = row < this.tallyStep ? k2Raw : Math.min(k2Raw, this.tallyCount);
+            BC.drawText(ctx, '>', 138, y, '#FCFCFC');
+            BC.drawText(ctx, String(k2), 148, y, '#FCFCFC');
+            BC.drawText(ctx, 'PTS', 168, y, '#FCFCFC');
+            BC.drawText(ctx, String(k2 * ptsPer), 234, y, '#FCFCFC', 'right');
+          }
+        }
+      }
+
+      // Horizontal Divider & TOTAL
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(64, 178, 128, 2);
+      BC.drawText(ctx, 'TOTAL', 52, 188, '#FCFCFC');
+
+      if (this.tallyStep >= 4) {
+        const t1 = this.players[0].kills.reduce((a, b) => a + b, 0);
+        BC.drawText(ctx, String(t1), 108, 188, '#FCFCFC', 'right');
+        if (this.isTwoPlayer && this.players[1]) {
+          const t2 = this.players[1].kills.reduce((a, b) => a + b, 0);
+          BC.drawText(ctx, String(t2), 148, 188, '#FCFCFC');
+          if (t1 !== t2) {
+            const winX = t1 > t2 ? 56 : 196;
+            BC.drawText(ctx, 'BONUS!', winX, 208, '#D82800', 'center');
+            BC.drawText(ctx, '1000 PTS', winX, 218, '#FCFCFC', 'center');
+          }
+        }
+      }
+    }
+
+    _renderGameOverScreen(ctx) {
+      ctx.fillStyle = BC.COLORS.BLACK;
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      BC.drawBrickWord(ctx, 'GAME', 128, 68, 6, true);
+      BC.drawBrickWord(ctx, 'OVER', 128, 124, 6, true);
+    }
+  }
+
+  BC.STATE = STATE;
+  BC.BattleCityGame = BattleCityGame;
+
+  // Boot entry point when DOM is ready
+  BC.init = function () {
+    const canvas = document.getElementById('game-canvas');
+    if (!canvas) return null;
+
+    const game = new BattleCityGame(canvas);
+
+    // Fixed 60Hz NTSC Timestep Loop (scaled by optional speedScale)
+    const BASE_STEP_MS = 1000 / 60;
+    let lastTime = performance.now();
+    let accumulator = 0;
+
+    function frame(now) {
+      const stepMs = BASE_STEP_MS / (game.speedScale || 1.0);
+      const delta = Math.min(100, now - lastTime);
+      lastTime = now;
+      accumulator += delta;
+
+      while (accumulator >= stepMs) {
+        game.update();
+        accumulator -= stepMs;
+      }
+
+      game.render();
+      global.requestAnimationFrame(frame);
+    }
+
+    global.requestAnimationFrame(frame);
+    return game;
+  };
+})(window);

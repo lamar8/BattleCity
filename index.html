@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Battle City 1985 - 经典坦克大战 1:1 复刻版</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="cabinet">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-badge">FC 1985</span>
+        <span class="brand-title">BATTLE CITY 坦克大战</span>
+      </div>
+
+      <div class="controls-bar">
+        <div class="stage-jump">
+          <select id="stage-select" aria-label="选择关卡"></select>
+          <button id="btn-jump" type="button" title="跳转到所选关卡">跳关</button>
+        </div>
+        <select id="speed-select" aria-label="游戏速度" title="调节游戏整体节奏">
+          <option value="0.75">速度: 0.75x</option>
+          <option value="1" selected>速度: 原版</option>
+          <option value="1.2">速度: 1.2x</option>
+        </select>
+        <button id="btn-pause" type="button" title="暂停/继续 (P / Enter)">暂停</button>
+        <button id="btn-title" type="button" title="返回主标题菜单">主菜单</button>
+        <button id="btn-mute" type="button" title="开关游戏音效">音效: 开</button>
+        <button id="btn-crt" type="button" title="开关复古 CRT 扫描线">CRT: 关</button>
+        <button id="btn-pad" type="button" title="显示/隐藏虚拟手柄">手柄</button>
+      </div>
+    </header>
+
+    <section class="screen-bezel">
+      <div id="screen-wrap" class="screen-wrap">
+        <canvas id="game-canvas" width="256" height="240"></canvas>
+        <div class="crt-overlay" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <section id="touch-pad" class="touch-pad" aria-label="虚拟手柄">
+      <div class="dpad">
+        <span class="empty"></span>
+        <button type="button" data-touch="up" aria-label="上">▲</button>
+        <span class="empty"></span>
+        <button type="button" data-touch="left" aria-label="左">◀</button>
+        <span class="empty"></span>
+        <button type="button" data-touch="right" aria-label="右">▶</button>
+        <span class="empty"></span>
+        <button type="button" data-touch="down" aria-label="下">▼</button>
+        <span class="empty"></span>
+      </div>
+      <button type="button" class="fire-btn" data-touch="fire">开火</button>
+    </section>
+
+    <footer class="legend-bar">
+      <div class="legend-item">
+        <strong>单人(1P)：</strong>
+        <span class="kbd">WASD</span> / <span class="kbd">方向键</span> 移动，
+        <span class="kbd">空格</span> / <span class="kbd">J</span> / <span class="kbd">Z</span> 开火，
+        <span class="kbd">P</span> / <span class="kbd">Enter</span> 暂停
+      </div>
+      <div class="legend-item">
+        <strong>双人(2P)：</strong>
+        1P <span class="kbd">WASD</span>+<span class="kbd">J/空格</span> ｜
+        2P <span class="kbd">方向键</span>+<span class="kbd">K/小键盘0</span>
+      </div>
+      <div class="legend-item">
+        <strong>地图编辑(CONSTRUCTION)：</strong>
+        <span class="kbd">方向键</span>/鼠标定位，<span class="kbd">空格</span>循环地形，
+        <span class="kbd">C</span>清空，<span class="kbd">Enter</span>保存试玩
+      </div>
+    </footer>
+  </main>
+
+  <script src="js/constants.js"></script>
+  <script src="js/font.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/game.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const BC = window.BattleCity;
+      const game = BC.init();
+      if (!game) return;
+
+      const stageSelect = document.getElementById('stage-select');
+      const speedSelect = document.getElementById('speed-select');
+      const btnJump = document.getElementById('btn-jump');
+      const btnPause = document.getElementById('btn-pause');
+      const btnTitle = document.getElementById('btn-title');
+      const btnMute = document.getElementById('btn-mute');
+      const btnCrt = document.getElementById('btn-crt');
+      const btnPad = document.getElementById('btn-pad');
+      const screenWrap = document.getElementById('screen-wrap');
+      const touchPad = document.getElementById('touch-pad');
+
+      function populateStages() {
+        const prev = stageSelect.value;
+        stageSelect.innerHTML = '';
+        for (let s = 1; s <= BC.TOTAL_CLASSIC_STAGES; s++) {
+          const opt = document.createElement('option');
+          opt.value = String(s);
+          opt.textContent = `第 ${s} 关`;
+          stageSelect.appendChild(opt);
+        }
+        if (BC.hasCustomStage()) {
+          const opt = document.createElement('option');
+          opt.value = String(BC.TOTAL_CLASSIC_STAGES + 1);
+          opt.textContent = '自定义关卡';
+          stageSelect.appendChild(opt);
+        }
+        if (prev) stageSelect.value = prev;
+      }
+
+      populateStages();
+
+      game.onStateChange = function (info) {
+        populateStages();
+        if (info.stage >= 1) {
+          stageSelect.value = String(info.stage);
+        }
+        btnPause.textContent = info.paused ? '继续' : '暂停';
+        btnPause.classList.toggle('active', !!info.paused);
+      };
+
+      stageSelect.addEventListener('change', () => stageSelect.blur());
+
+      speedSelect.addEventListener('change', () => {
+        game.setSpeedScale(parseFloat(speedSelect.value));
+        speedSelect.blur();
+      });
+
+      btnJump.addEventListener('click', () => {
+        const s = parseInt(stageSelect.value, 10) || 1;
+        game.jumpToStage(s, game.isTwoPlayer);
+        btnJump.blur();
+      });
+
+      btnPause.addEventListener('click', () => {
+        game.togglePause();
+        btnPause.blur();
+      });
+
+      btnTitle.addEventListener('click', () => {
+        game.returnToTitle();
+        btnTitle.blur();
+      });
+
+      let muted = false;
+      btnMute.addEventListener('click', () => {
+        muted = !muted;
+        BC.Audio.setMuted(muted);
+        btnMute.textContent = muted ? '音效: 关' : '音效: 开';
+        btnMute.classList.toggle('active', muted);
+        btnMute.blur();
+      });
+
+      let crtOn = false;
+      btnCrt.addEventListener('click', () => {
+        crtOn = !crtOn;
+        screenWrap.classList.toggle('crt-on', crtOn);
+        btnCrt.textContent = crtOn ? 'CRT: 开' : 'CRT: 关';
+        btnCrt.classList.toggle('active', crtOn);
+        btnCrt.blur();
+      });
+
+      btnPad.addEventListener('click', () => {
+        const vis = touchPad.classList.toggle('visible');
+        btnPad.classList.toggle('active', vis);
+        btnPad.blur();
+      });
+
+      // Touch & mouse bindings for virtual gamepad
+      document.querySelectorAll('[data-touch]').forEach((btn) => {
+        const action = btn.getAttribute('data-touch');
+        const press = (e) => {
+          e.preventDefault();
+          game.setTouchInput(action, true);
+        };
+        const release = (e) => {
+          e.preventDefault();
+          game.setTouchInput(action, false);
+        };
+        btn.addEventListener('pointerdown', press);
+        btn.addEventListener('pointerup', release);
+        btn.addEventListener('pointerleave', release);
+        btn.addEventListener('pointercancel', release);
+      });
+    })();
+  </script>
+</body>
+</html>
