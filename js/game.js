@@ -568,8 +568,13 @@
         const t = p.tank;
         anyPlayerActive = true;
         if (t.shieldTimer > 0) t.shieldTimer--;
-        if (t.stunTimer > 0) t.stunTimer--;
+        if (t.stunTimer > 0) {
+          t.stunTimer--;
+          t.burstQueue = 0;
+          t.burstTimer = 0;
+        }
         if (t.shootCooldown > 0) t.shootCooldown--;
+        if (t.burstTimer > 0) t.burstTimer--;
         t.isMoving = false;
 
         if (allowPlayerControl && t.stunTimer <= 0) {
@@ -594,8 +599,19 @@
           }
 
           if (ctrl.fire && t.canFire(this.bullets)) {
+            const activeBefore = t.countActiveBullets(this.bullets);
             this.bullets.push(t.createBullet());
             BC.Audio.playShoot();
+            if (t.maxBullets >= 2 && activeBefore === 0) {
+              t.burstQueue = 1;
+              t.burstTimer = 6;
+            }
+          } else if (t.burstQueue > 0 && t.burstTimer <= 0) {
+            if (t.countActiveBullets(this.bullets) < t.maxBullets) {
+              this.bullets.push(t.createBullet());
+              BC.Audio.playShoot();
+            }
+            t.burstQueue = 0;
           }
         }
       }

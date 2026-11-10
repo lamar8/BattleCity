@@ -322,6 +322,8 @@
       this.moveTick = 0;
       this.isMoving = false;
       this.shootCooldown = this.isPlayer ? 0 : 25 + Math.floor(Math.random() * 40);
+      this.burstQueue = 0;
+      this.burstTimer = 0;
       this.aiTurnCooldown = 0;
       this.flashTick = 0;
     }
@@ -422,13 +424,17 @@
       return false;
     }
 
-    canFire(activeBullets) {
-      if (!this.alive || this.stunTimer > 0 || this.shootCooldown > 0) return false;
+    countActiveBullets(activeBullets) {
       let count = 0;
       for (const b of activeBullets) {
         if (b.alive && b.ownerId === this.id) count++;
       }
-      return count < this.maxBullets;
+      return count;
+    }
+
+    canFire(activeBullets) {
+      if (!this.alive || this.stunTimer > 0 || this.shootCooldown > 0) return false;
+      return this.countActiveBullets(activeBullets) < this.maxBullets;
     }
 
     createBullet() {
