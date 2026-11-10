@@ -157,28 +157,19 @@
   // =========================================================================
   // 2. GENSHIN-INSPIRED HD 2D TYPOGRAPHY & TITLES
   // =========================================================================
-  function remapGenshinColor(color) {
-    if (!color) return '#F7F3E9';
-    const up = color.toUpperCase();
-    if (up === '#000000') return '#D3BC8E';
-    if (up === '#3A3A3A') return '#9DB2CE';
-    if (up === '#FCFCFC') return '#F7F3E9';
-    if (up === '#D82800') return '#FF6B5E';
-    if (up === '#FC9838') return '#F5C469';
-    if (up === '#FCE4A0') return '#FFF0B8';
-    return color;
-  }
+  const SKIN_TEXT_MAPS = {
+    genshin: { '#000000': '#D3BC8E', '#3A3A3A': '#9DB2CE', '#FCFCFC': '#F7F3E9', '#D82800': '#FF6B5E', '#FC9838': '#F5C469', '#FCE4A0': '#FFF0B8' },
+    cyberpunk: { '#000000': '#00F0FF', '#3A3A3A': '#7A92B8', '#FCFCFC': '#E6FAFF', '#D82800': '#FF2A85', '#FC9838': '#FCEE0A', '#FCE4A0': '#00F0FF' },
+    wwii: { '#000000': '#C8BA8A', '#3A3A3A': '#8C8973', '#FCFCFC': '#EFE7D0', '#D82800': '#E05A47', '#FC9838': '#D9A754', '#FCE4A0': '#EFE2B0' },
+    metalslug: { '#000000': '#E8B848', '#3A3A3A': '#9E93A6', '#FCFCFC': '#FFF6DE', '#D82800': '#FF5438', '#FC9838': '#FFB83D', '#FCE4A0': '#FFE875' },
+    modern: { '#000000': '#6DA4C4', '#3A3A3A': '#7B8A9C', '#FCFCFC': '#E4EFF7', '#D82800': '#FF5252', '#FC9838': '#F5B841', '#FCE4A0': '#6AD4FF' },
+    wartable: { '#000000': '#D6B472', '#3A3A3A': '#8C7452', '#FCFCFC': '#FFF4DC', '#D82800': '#D1382E', '#FC9838': '#E09638', '#FCE4A0': '#F2CA6B' },
+  };
 
-  function remapCyberColor(color) {
-    if (!color) return '#E6FAFF';
-    const up = color.toUpperCase();
-    if (up === '#000000') return '#00F0FF';
-    if (up === '#3A3A3A') return '#7A92B8';
-    if (up === '#FCFCFC') return '#E6FAFF';
-    if (up === '#D82800') return '#FF2A85';
-    if (up === '#FC9838') return '#FCEE0A';
-    if (up === '#FCE4A0') return '#00F0FF';
-    return color;
+  function remapSkinColor(skin, color) {
+    const map = SKIN_TEXT_MAPS[skin] || SKIN_TEXT_MAPS.genshin;
+    if (!color) return map['#FCFCFC'];
+    return map[color.toUpperCase()] || color;
   }
 
   // =========================================================================
@@ -203,15 +194,19 @@
     const S = BC.RENDER_SCALE || 4;
     const str = String(text);
     const isCyber = skin === 'cyberpunk';
-    const fillCol = isCyber ? remapCyberColor(color) : remapGenshinColor(color);
+    const fillCol = remapSkinColor(skin, color);
 
     ctx.save();
     ctx.scale(1 / S, 1 / S);
 
     const pxSize = Math.round(sizeLogical * S);
-    ctx.font = isCyber
-      ? `800 ${pxSize}px "Orbitron", "Consolas", "Bahnschrift", "Microsoft YaHei", sans-serif`
-      : `700 ${pxSize}px "Georgia", "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif`;
+    if (isCyber || skin === 'modern') {
+      ctx.font = `800 ${pxSize}px "Orbitron", "Bahnschrift", "Consolas", "Microsoft YaHei", sans-serif`;
+    } else if (skin === 'metalslug' || skin === 'wwii') {
+      ctx.font = `900 ${pxSize}px "Impact", "Arial Black", "Bahnschrift", "Microsoft YaHei", sans-serif`;
+    } else {
+      ctx.font = `700 ${pxSize}px "Georgia", "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif`;
+    }
     ctx.textBaseline = 'top';
     ctx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
 
@@ -222,8 +217,8 @@
       ctx.shadowColor = fillCol;
       ctx.shadowBlur = 8;
     }
-    ctx.lineWidth = Math.max(2, S * 0.85);
-    ctx.strokeStyle = isCyber ? 'rgba(6, 10, 22, 0.95)' : 'rgba(10, 14, 24, 0.9)';
+    ctx.lineWidth = Math.max(2, S * 0.9);
+    ctx.strokeStyle = skin === 'wartable' ? 'rgba(26, 17, 11, 0.95)' : (isCyber ? 'rgba(6, 10, 22, 0.95)' : 'rgba(10, 14, 24, 0.92)');
     ctx.strokeText(str, drawX, drawY);
 
     ctx.fillStyle = fillCol;
@@ -254,14 +249,15 @@
     const fontPx = Math.round(scale * 6.8 * S);
     const topY = Math.round(y * S);
 
-    ctx.font = isCyber
-      ? `900 italic ${fontPx}px "Orbitron", "Bahnschrift", "Impact", sans-serif`
-      : `900 ${fontPx}px "Cinzel", "Georgia", "Times New Roman", serif`;
+    if (isCyber) ctx.font = `900 italic ${fontPx}px "Orbitron", "Bahnschrift", "Impact", sans-serif`;
+    else if (skin === 'modern') ctx.font = `900 ${fontPx}px "Bahnschrift", "Impact", sans-serif`;
+    else if (skin === 'metalslug' || skin === 'wwii') ctx.font = `900 ${fontPx}px "Impact", "Arial Black", sans-serif`;
+    else ctx.font = `900 ${fontPx}px "Cinzel", "Georgia", "Times New Roman", serif`;
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
     if (isCyber) {
-      // Chromatic cyber aberration offset layer
       ctx.fillStyle = isRed ? 'rgba(0, 240, 255, 0.55)' : 'rgba(255, 42, 133, 0.65)';
       ctx.fillText(str, cx + 5, topY + 3);
     }
@@ -269,53 +265,47 @@
     ctx.save();
     ctx.shadowColor = isCyber
       ? (isRed ? 'rgba(255, 42, 133, 0.85)' : 'rgba(0, 240, 255, 0.78)')
-      : (isRed ? 'rgba(255, 78, 80, 0.65)' : 'rgba(245, 200, 105, 0.55)');
-    ctx.shadowBlur = isCyber ? 22 : 18;
+      : (isRed ? 'rgba(220, 60, 50, 0.6)' : 'rgba(235, 185, 95, 0.5)');
+    ctx.shadowBlur = isCyber ? 22 : 16;
     ctx.lineWidth = Math.round(S * 2.2);
-    ctx.strokeStyle = isCyber ? '#070B1A' : (isRed ? '#380D14' : '#1E1810');
+    ctx.strokeStyle = isCyber ? '#070B1A' : (skin === 'wartable' ? '#24150A' : (isRed ? '#380D14' : '#1A1712'));
     ctx.strokeText(str, cx, topY);
     ctx.restore();
 
     const grad = ctx.createLinearGradient(0, topY, 0, topY + fontPx);
     if (isCyber) {
-      if (isRed) {
-        grad.addColorStop(0.0, '#FFE0F0');
-        grad.addColorStop(0.45, '#FF2A85');
-        grad.addColorStop(0.85, '#B00054');
-        grad.addColorStop(1.0, '#4F0028');
-      } else {
-        grad.addColorStop(0.0, '#FFFFFF');
-        grad.addColorStop(0.42, '#00F0FF');
-        grad.addColorStop(0.75, '#0088E8');
-        grad.addColorStop(1.0, '#FCEE0A');
-      }
+      if (isRed) { grad.addColorStop(0, '#FFE0F0'); grad.addColorStop(0.45, '#FF2A85'); grad.addColorStop(1, '#4F0028'); }
+      else { grad.addColorStop(0, '#FFFFFF'); grad.addColorStop(0.42, '#00F0FF'); grad.addColorStop(0.75, '#0088E8'); grad.addColorStop(1, '#FCEE0A'); }
+    } else if (skin === 'wwii') {
+      if (isRed) { grad.addColorStop(0, '#F5B8AE'); grad.addColorStop(0.5, '#D85A48'); grad.addColorStop(1, '#6E2018'); }
+      else { grad.addColorStop(0, '#EFE7D0'); grad.addColorStop(0.45, '#B5A87E'); grad.addColorStop(1, '#58523C'); }
+    } else if (skin === 'metalslug') {
+      if (isRed) { grad.addColorStop(0, '#FFE0CC'); grad.addColorStop(0.5, '#FF4D38'); grad.addColorStop(1, '#8C1414'); }
+      else { grad.addColorStop(0, '#FFF8D6'); grad.addColorStop(0.45, '#FFD048'); grad.addColorStop(0.85, '#E07228'); grad.addColorStop(1, '#7A2A12'); }
+    } else if (skin === 'modern') {
+      if (isRed) { grad.addColorStop(0, '#FFD4D4'); grad.addColorStop(0.5, '#FF5252'); grad.addColorStop(1, '#751818'); }
+      else { grad.addColorStop(0, '#FFFFFF'); grad.addColorStop(0.45, '#A8C6DC'); grad.addColorStop(0.85, '#52708A'); grad.addColorStop(1, '#2B3B4A'); }
+    } else if (skin === 'wartable') {
+      if (isRed) { grad.addColorStop(0, '#F2A096'); grad.addColorStop(0.5, '#C83228'); grad.addColorStop(1, '#59100C'); }
+      else { grad.addColorStop(0, '#FFF4CE'); grad.addColorStop(0.45, '#D6B472'); grad.addColorStop(1, '#6E4C1E'); }
     } else if (isRed) {
-      grad.addColorStop(0.0, '#FFD4CC');
-      grad.addColorStop(0.42, '#FF685C');
-      grad.addColorStop(0.75, '#D12E3C');
-      grad.addColorStop(1.0, '#781523');
+      grad.addColorStop(0.0, '#FFD4CC'); grad.addColorStop(0.42, '#FF685C'); grad.addColorStop(0.75, '#D12E3C'); grad.addColorStop(1.0, '#781523');
     } else {
-      grad.addColorStop(0.0, '#FFFDF2');
-      grad.addColorStop(0.38, '#F6DA92');
-      grad.addColorStop(0.72, '#CFA04E');
-      grad.addColorStop(1.0, '#855A1D');
+      grad.addColorStop(0.0, '#FFFDF2'); grad.addColorStop(0.38, '#F6DA92'); grad.addColorStop(0.72, '#CFA04E'); grad.addColorStop(1.0, '#855A1D');
     }
 
     ctx.fillStyle = grad;
     ctx.fillText(str, cx, topY);
 
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = isCyber
-      ? 'rgba(255, 255, 255, 0.7)'
-      : (isRed ? 'rgba(255,215,210,0.45)' : 'rgba(255,252,235,0.55)');
+    ctx.strokeStyle = isCyber ? 'rgba(255,255,255,0.7)' : 'rgba(255,250,235,0.45)';
     ctx.strokeText(str, cx, topY);
 
     if (ctx.beginPath) {
       const lineW = Math.min(ctx.measureText(str).width * 0.76, 168 * S);
       const lineY = topY + fontPx + Math.round(S * 1.2);
-      ctx.strokeStyle = isCyber
-        ? (isRed ? 'rgba(255, 42, 133, 0.8)' : 'rgba(0, 240, 255, 0.8)')
-        : (isRed ? 'rgba(255, 110, 100, 0.55)' : 'rgba(211, 188, 142, 0.6)');
+      const trim = BC.COLORS.GOLD_TRIM || '#D3BC8E';
+      ctx.strokeStyle = trim;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(cx - lineW / 2, lineY);
@@ -324,7 +314,7 @@
       ctx.lineTo(cx + lineW / 2, lineY);
       ctx.stroke();
 
-      ctx.fillStyle = isCyber ? '#FCEE0A' : (isRed ? '#FF948A' : '#FCE7A2');
+      ctx.fillStyle = isCyber ? '#FCEE0A' : (BC.COLORS.GOLD_BRIGHT || '#FCE7A2');
       ctx.beginPath();
       ctx.moveTo(cx, lineY - 6);
       ctx.lineTo(cx + 6, lineY);

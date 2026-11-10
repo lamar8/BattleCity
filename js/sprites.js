@@ -1640,7 +1640,7 @@
     return cache;
   }
 
-  // Build all sprite libraries once
+  // Build core sprite libraries once
   const classicSprites = buildClassicSprites();
   const genshinSprites = buildGenshinSprites();
   const cyberpunkSprites = buildCyberpunkSprites();
@@ -1650,7 +1650,29 @@
     genshin: genshinSprites,
     cyberpunk: cyberpunkSprites,
   };
-  BC.SPRITES = BC.SKIN_SPRITES[BC.getSkin()];
+  BC._tankRenderers = {
+    cyberpunk: drawCyberTankHD,
+    genshin: drawGenshinTankHD,
+  };
+  BC._explosionRenderers = {};
+  BC._gfx = {
+    createCanvas,
+    roundRectPath,
+    octagonPath,
+    drawFourPointStar,
+    buildClassicSprites,
+  };
+
+  BC.registerSkin = function (name, spriteSet, tankFn, explosionFn) {
+    BC.SKIN_SPRITES[name] = spriteSet;
+    if (tankFn) BC._tankRenderers[name] = tankFn;
+    if (explosionFn) BC._explosionRenderers[name] = explosionFn;
+    if (BC.getSkin() === name) {
+      BC.SPRITES = spriteSet;
+    }
+  };
+
+  BC.SPRITES = BC.SKIN_SPRITES[BC.getSkin()] || classicSprites;
 
   const tankCache = new Map();
 
@@ -1665,8 +1687,8 @@
       const base = normalizeDesign(TANK_DESIGNS[designKey]);
       const withTreads = applyTreads(base, frame & 1, '3', '1');
       cached = renderBitmap(withTreads, palette, dir);
-    } else if (skin === 'cyberpunk') {
-      cached = drawCyberTankHD(designKey, palette, dir, frame);
+    } else if (BC._tankRenderers[skin]) {
+      cached = BC._tankRenderers[skin](designKey, palette, dir, frame);
     } else {
       cached = drawGenshinTankHD(designKey, palette, dir, frame);
     }
@@ -1741,6 +1763,12 @@
     }
 
     if (typeof ctx.beginPath !== 'function') return;
+
+    if (BC._explosionRenderers[skin]) {
+      BC._explosionRenderers[skin](ctx, cx, cy, frame, isBig);
+      return;
+    }
+
     ctx.save();
 
     if (skin === 'cyberpunk') {

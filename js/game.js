@@ -1232,11 +1232,43 @@
       }
     }
 
+    _drawRealisticBackdrop(ctx, skin, animated = false) {
+      if (typeof ctx.createLinearGradient === 'function') {
+        const bg = ctx.createLinearGradient(0, 0, 0, BC.SCREEN_HEIGHT);
+        if (skin === 'wwii') {
+          bg.addColorStop(0, '#1C1F18'); bg.addColorStop(0.6, '#262920'); bg.addColorStop(1, '#141611');
+        } else if (skin === 'metalslug') {
+          bg.addColorStop(0, '#2E1A18'); bg.addColorStop(0.55, '#241D24'); bg.addColorStop(1, '#141115');
+        } else if (skin === 'modern') {
+          bg.addColorStop(0, '#0C1118'); bg.addColorStop(0.6, '#151E2B'); bg.addColorStop(1, '#0B0E14');
+        } else if (skin === 'wartable') {
+          bg.addColorStop(0, '#2B1D13'); bg.addColorStop(0.5, '#382619'); bg.addColorStop(1, '#1E130B');
+        }
+        ctx.fillStyle = bg;
+      } else {
+        ctx.fillStyle = BC.COLORS.BLACK;
+      }
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+
+      if (animated && skin === 'modern' && typeof ctx.beginPath === 'function') {
+        ctx.strokeStyle = 'rgba(106, 212, 255, 0.14)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.arc(128, 120, 72, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(128, 120, 42, 0, Math.PI * 2); ctx.stroke();
+      } else if (skin === 'wartable' && typeof ctx.beginPath === 'function') {
+        ctx.strokeStyle = 'rgba(214, 180, 114, 0.22)';
+        ctx.lineWidth = 0.6;
+        ctx.strokeRect(8, 8, BC.SCREEN_WIDTH - 16, BC.SCREEN_HEIGHT - 16);
+      }
+    }
+
     _renderBackdrop(ctx, animated = false) {
       const skin = BC.getSkin();
       if (skin === 'genshin') this._drawTeyvatBackdrop(ctx, animated);
       else if (skin === 'cyberpunk') this._drawCyberBackdrop(ctx, animated);
-      else {
+      else if (skin === 'wwii' || skin === 'metalslug' || skin === 'modern' || skin === 'wartable') {
+        this._drawRealisticBackdrop(ctx, skin, animated);
+      } else {
         ctx.fillStyle = BC.COLORS.BLACK;
         ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
       }
@@ -1328,6 +1360,13 @@
       ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP, BC.FIELD_SIZE, BC.FIELD_SIZE);
 
       if (isHD) {
+        if (BC.getSkin() === 'wartable' && typeof ctx.beginPath === 'function') {
+          ctx.strokeStyle = 'rgba(120, 90, 50, 0.16)';
+          ctx.lineWidth = 0.6;
+          for (const [cx, cy, rx, ry] of [[68, 72, 34, 22], [170, 96, 28, 38], [92, 168, 42, 20]]) {
+            ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0.3, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
         ctx.fillStyle = BC.COLORS.FIELD_GRID;
         for (let i = 1; i < BC.GRID_BLOCKS; i++) {
           ctx.fillRect(BC.BORDER_LEFT + i * 16, BC.BORDER_TOP, 0.5, BC.FIELD_SIZE);

@@ -289,12 +289,186 @@
       ENEMY_GOLD: ['#6E5406', '#D4A80C', '#FCEE0A', '#FF2A85'],
       ENEMY_ELECTRO: ['#590E4F', '#C41A8E', '#FF70DA', '#00F0FF'],
     },
+    wwii: {
+      BLACK: '#191B17',
+      FIELD_BG: '#2A261F',
+      FIELD_GRID: '#352F26',
+      HUD_GRAY: '#262922',
+      HUD_DARK: '#171914',
+      GOLD_TRIM: '#9E936E',
+      GOLD_BRIGHT: '#E8DCB5',
+      WHITE: '#EFE7D0',
+      TEXT_RED: '#E05A47',
+      TEXT_ORANGE: '#D9A754',
+      TEXT_YELLOW: '#EFE2B0',
+
+      BRICK_DARK: '#5E2B20',
+      BRICK_MID: '#8E4332',
+      BRICK_LIGHT: '#B8624B',
+      BRICK_MORTAR: '#3A231E',
+
+      STEEL_DARK: '#2D3136',
+      STEEL_MID: '#50565E',
+      STEEL_LIGHT: '#848C96',
+      STEEL_CORE: '#C8B878',
+
+      FOREST_DARK: '#1B361C',
+      FOREST_MID: '#2F572D',
+      FOREST_LIGHT: '#568544',
+
+      WATER_DARK: '#1A3442',
+      WATER_MID: '#2D586D',
+      WATER_LIGHT: '#6A9CAE',
+
+      ICE_DARK: '#6B7D85',
+      ICE_MID: '#A6B9C2',
+      ICE_LIGHT: '#DDE8ED',
+
+      P1: ['#3B4B2B', '#586E40', '#7D965E', '#EFE7D0'],      // US Sherman Olive Drab
+      P2: ['#274536', '#3C6952', '#5B9474', '#E0C068'],      // Allied Forest Pine
+      ENEMY_BASIC: ['#383C42', '#575D66', '#838B96', '#D85A48'], // Panzer Field Gray
+      ENEMY_RED: ['#6E2424', '#A83834', '#D66B60', '#F0D078'],   // Red Command Target
+      ENEMY_GREEN: ['#324D3A', '#4E7559', '#78A382', '#D8E0A8'], // Camo Heavy
+      ENEMY_GOLD: ['#6E5D36', '#9E8750', '#C9B175', '#EFE7D0'],  // Africa Korps Desert Tan
+      ENEMY_ELECTRO: ['#4A3D36', '#7A6354', '#AA8E79', '#F09060'], // Heavy Tiger Brown-Steel
+    },
+    metalslug: {
+      BLACK: '#1A161C',
+      FIELD_BG: '#262126',
+      FIELD_GRID: '#332C32',
+      HUD_GRAY: '#2B252B',
+      HUD_DARK: '#191519',
+      GOLD_TRIM: '#E09A38',
+      GOLD_BRIGHT: '#FFE382',
+      WHITE: '#FFF6DE',
+      TEXT_RED: '#FF5438',
+      TEXT_ORANGE: '#FFB83D',
+      TEXT_YELLOW: '#FFE875',
+
+      BRICK_DARK: '#6E2B19',
+      BRICK_MID: '#B34C27',
+      BRICK_LIGHT: '#E87E45',
+      BRICK_MORTAR: '#3B1C16',
+
+      STEEL_DARK: '#333B4A',
+      STEEL_MID: '#5E6B80',
+      STEEL_LIGHT: '#F0B82B',
+      STEEL_CORE: '#FFD94A',
+
+      FOREST_DARK: '#184F27',
+      FOREST_MID: '#35943A',
+      FOREST_LIGHT: '#80D948',
+
+      WATER_DARK: '#13488C',
+      WATER_MID: '#238AE0',
+      WATER_LIGHT: '#9BE8FF',
+
+      ICE_DARK: '#4C8AB0',
+      ICE_MID: '#92D4FA',
+      ICE_LIGHT: '#E8FAFF',
+
+      P1: ['#7E6E30', '#C4AE54', '#F5E18E', '#4FF0FF'],      // SV-001 Metal Slug Gold-Olive
+      P2: ['#236647', '#3BB075', '#8FF0B8', '#FFE46B'],      // Slug Commando Green
+      ENEMY_BASIC: ['#3B4457', '#67748F', '#A3B2CC', '#FF4D38'], // Rebel Iron Gray
+      ENEMY_RED: ['#801B1B', '#CC3329', '#FF7C66', '#FFE46B'],   // Rebel Ace Red
+      ENEMY_GREEN: ['#215E3E', '#389962', '#7DE09E', '#FFE46B'],
+      ENEMY_GOLD: ['#85591B', '#C98A2C', '#FFD06B', '#FFF5CE'],
+      ENEMY_ELECTRO: ['#5A2E66', '#944BA6', '#D48CE6', '#FFE46B'],
+    },
+    modern: {
+      BLACK: '#10141A',
+      FIELD_BG: '#1B2028',
+      FIELD_GRID: '#262E3B',
+      HUD_GRAY: '#151A22',
+      HUD_DARK: '#0D1016',
+      GOLD_TRIM: '#6DA4C4',
+      GOLD_BRIGHT: '#BEE6FF',
+      WHITE: '#E4EFF7',
+      TEXT_RED: '#FF5252',
+      TEXT_ORANGE: '#F5B841',
+      TEXT_YELLOW: '#6AD4FF',
+
+      BRICK_DARK: '#454346',
+      BRICK_MID: '#7A544C',
+      BRICK_LIGHT: '#A8796D',
+      BRICK_MORTAR: '#2A2C30',
+
+      STEEL_DARK: '#2A303B',
+      STEEL_MID: '#4B5566',
+      STEEL_LIGHT: '#8CA0B8',
+      STEEL_CORE: '#FF5252',
+
+      FOREST_DARK: '#1D3B2B',
+      FOREST_MID: '#336B49',
+      FOREST_LIGHT: '#5DA673',
+
+      WATER_DARK: '#112E4D',
+      WATER_MID: '#1F5C91',
+      WATER_LIGHT: '#6BB8E8',
+
+      ICE_DARK: '#4A6E82',
+      ICE_MID: '#8BB8CC',
+      ICE_LIGHT: '#D7EDF5',
+
+      P1: ['#6E6045', '#A8946D', '#D6C49C', '#4CE8FF'],      // M1A2 Desert Digital Tan
+      P2: ['#2B4C54', '#467B87', '#7BB3BF', '#6DFAB8'],      // Modern Urban Tactical Teal
+      ENEMY_BASIC: ['#2D333D', '#4B5566', '#7C889C', '#FF5252'], // Stealth Charcoal
+      ENEMY_RED: ['#6B1D28', '#B83344', '#EB6E7B', '#F5B841'],   // Priority Hostile Red
+      ENEMY_GREEN: ['#2B4D3E', '#487D64', '#7AB397', '#6AD4FF'],
+      ENEMY_GOLD: ['#6E5D36', '#A88E54', '#D6BA7C', '#FF5252'],
+      ENEMY_ELECTRO: ['#3A3B5E', '#606399', '#999CD4', '#6AD4FF'],
+    },
+    wartable: {
+      BLACK: '#261A11',
+      FIELD_BG: '#D9C8A2',
+      FIELD_GRID: '#B8A276',
+      HUD_GRAY: '#2B1D13',
+      HUD_DARK: '#1A110B',
+      GOLD_TRIM: '#D6B472',
+      GOLD_BRIGHT: '#FFF0C2',
+      WHITE: '#F7ECD4',
+      TEXT_RED: '#C83228',
+      TEXT_ORANGE: '#D98C36',
+      TEXT_YELLOW: '#F2CA6B',
+
+      BRICK_DARK: '#6E3522',
+      BRICK_MID: '#A65336',
+      BRICK_LIGHT: '#D17854',
+      BRICK_MORTAR: '#4A2418',
+
+      STEEL_DARK: '#3B424D',
+      STEEL_MID: '#687382',
+      STEEL_LIGHT: '#A8B3C2',
+      STEEL_CORE: '#D6B472',
+
+      FOREST_DARK: '#274F2B',
+      FOREST_MID: '#447D44',
+      FOREST_LIGHT: '#78AD66',
+
+      WATER_DARK: '#225078',
+      WATER_MID: '#3F7BA8',
+      WATER_LIGHT: '#8FC2E0',
+
+      ICE_DARK: '#8C9EA6',
+      ICE_MID: '#C8D8DE',
+      ICE_LIGHT: '#F2FAFC',
+
+      P1: ['#7A531E', '#BD8634', '#EBBE6C', '#FFF4CE'],      // Burnished Brass Token
+      P2: ['#254F32', '#3D7D4E', '#6EB57C', '#F2DF99'],      // Painted Olive Enamel Token
+      ENEMY_BASIC: ['#2D3036', '#4E545E', '#7F8794', '#D1382E'], // Cast Iron Token
+      ENEMY_RED: ['#6B1B1B', '#A62D29', '#D65B51', '#F2CA6B'],   // Crimson Lacquer Token
+      ENEMY_GREEN: ['#27543B', '#3E825A', '#6BB587', '#FFF4CE'],
+      ENEMY_GOLD: ['#785D22', '#B58D38', '#E0BC67', '#FFF4CE'],
+      ENEMY_ELECTRO: ['#472E4A', '#754C78', '#A878AB', '#F2CA6B'],
+    },
   };
+
+  const VALID_SKINS = new Set(['classic', 'genshin', 'cyberpunk', 'wwii', 'metalslug', 'modern', 'wartable']);
 
   function loadInitialSkin() {
     try {
       const saved = global.localStorage && global.localStorage.getItem(SKIN_STORAGE_KEY);
-      if (saved === 'classic' || saved === 'genshin' || saved === 'cyberpunk') return saved;
+      if (VALID_SKINS.has(saved)) return saved;
     } catch (_) {}
     return 'genshin';
   }
@@ -307,7 +481,7 @@
   };
 
   BC.setSkin = function (skin) {
-    if (skin !== 'classic' && skin !== 'genshin' && skin !== 'cyberpunk') return;
+    if (!VALID_SKINS.has(skin)) return;
     BC.SKIN = skin;
     BC.COLORS = BC.THEMES[skin];
     if (BC.SKIN_SPRITES && BC.SKIN_SPRITES[skin]) {

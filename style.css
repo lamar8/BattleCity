@@ -177,6 +177,30 @@ body[data-skin="cyberpunk"] .brand-badge {
   color: #070b14;
 }
 
+body[data-skin="wwii"] .screen-bezel {
+  border-color: #6b684f;
+  background: linear-gradient(160deg, #21241c 0%, #141610 100%);
+}
+body[data-skin="wwii"] .brand-badge { background: #586e40; color: #efe7d0; }
+
+body[data-skin="metalslug"] .screen-bezel {
+  border-color: #b86a24;
+  background: linear-gradient(160deg, #2b1d1b 0%, #171216 100%);
+}
+body[data-skin="metalslug"] .brand-badge { background: #d95a28; color: #fff6de; }
+
+body[data-skin="modern"] .screen-bezel {
+  border-color: #567d96;
+  background: linear-gradient(160deg, #161d26 0%, #0d1117 100%);
+}
+body[data-skin="modern"] .brand-badge { background: #3b6d8c; color: #e4eff7; }
+
+body[data-skin="wartable"] .screen-bezel {
+  border-color: #9e7b47;
+  background: linear-gradient(160deg, #332216 0%, #1c120b 100%);
+}
+body[data-skin="wartable"] .brand-badge { background: #a65336; color: #fff0c2; }
+
 .crt-overlay {
   position: absolute;
   inset: 0;
