@@ -139,10 +139,28 @@ button.active {
   width: 100%;
   height: 100%;
   display: block;
+  image-rendering: auto;
+}
+
+body[data-skin="classic"] #game-canvas {
   image-rendering: -moz-crisp-edges;
   image-rendering: -webkit-crisp-edges;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+
+body[data-skin="genshin"] .screen-bezel {
+  border-color: #6b5d42;
+  background: linear-gradient(160deg, #171e2d 0%, #0f141e 100%);
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.72),
+    0 0 24px rgba(211, 188, 142, 0.14),
+    inset 0 0 0 1px rgba(211, 188, 142, 0.3);
+}
+
+body[data-skin="genshin"] .brand-badge {
+  background: linear-gradient(135deg, #cfa04e, #946822);
+  color: #fff8e2;
 }
 
 .crt-overlay {

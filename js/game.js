@@ -206,6 +206,11 @@
       this.speedScale = Math.max(0.5, Math.min(1.5, Number(scale) || 1.0));
     }
 
+    setSkin(skin) {
+      BC.setSkin(skin);
+      this._notifyUI();
+    }
+
     _notifyUI() {
       if (typeof this.onStateChange === 'function') {
         this.onStateChange({
@@ -1102,11 +1107,16 @@
     }
 
     // =======================================================================
-    // RENDERING (Native 256 x 240 NES Canvas)
+    // RENDERING (Logical 256 x 240 mapped cleanly to 4x HD Canvas)
     // =======================================================================
     render() {
       const ctx = this.ctx;
-      ctx.imageSmoothingEnabled = false;
+      const S = BC.RENDER_SCALE || 4;
+      const isGenshin = BC.getSkin() === 'genshin';
+      ctx.imageSmoothingEnabled = isGenshin;
+
+      ctx.save();
+      ctx.scale(S, S);
 
       if (this.state === STATE.TITLE) {
         this._renderTitle(ctx);
@@ -1125,11 +1135,46 @@
       } else if (this.state === STATE.EDITOR) {
         this.editor.draw(ctx);
       }
+
+      ctx.restore();
+    }
+
+    _drawTeyvatBackdrop(ctx, animatedStars = false) {
+      if (typeof ctx.createLinearGradient === 'function') {
+        const bg = ctx.createLinearGradient(0, 0, 0, BC.SCREEN_HEIGHT);
+        bg.addColorStop(0, '#0F1626');
+        bg.addColorStop(0.55, '#17223B');
+        bg.addColorStop(1, '#101522');
+        ctx.fillStyle = bg;
+      } else {
+        ctx.fillStyle = BC.COLORS.BLACK;
+      }
+      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+
+      if (animatedStars && typeof ctx.beginPath === 'function') {
+        const stars = [
+          [28, 32], [64, 18], [212, 26], [234, 64], [18, 120],
+          [240, 146], [34, 196], [220, 206], [128, 22], [96, 172],
+        ];
+        for (let i = 0; i < stars.length; i++) {
+          const [sx, sy] = stars[i];
+          const tw = 0.35 + 0.65 * Math.abs(Math.sin(this.globalFrame * 0.04 + i * 1.3));
+          ctx.fillStyle = i % 2 === 0 ? `rgba(252, 231, 162, ${tw})` : `rgba(122, 231, 240, ${tw})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 0.9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
 
     _renderTitle(ctx) {
-      ctx.fillStyle = BC.COLORS.BLACK;
-      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      const isGenshin = BC.getSkin() === 'genshin';
+      if (isGenshin) {
+        this._drawTeyvatBackdrop(ctx, true);
+      } else {
+        ctx.fillStyle = BC.COLORS.BLACK;
+        ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      }
 
       const oy = Math.round(this.titleSlideY);
 
@@ -1139,21 +1184,22 @@
       BC.drawText(ctx, `I- ${p1ScoreStr.padStart(5, ' ')}`, 16, 16 + oy, '#FCFCFC');
       BC.drawText(ctx, `HI- ${hiScoreStr}`, 136, 16 + oy, '#FCFCFC');
 
-      // Iconic Giant Brick Logos
-      BC.drawBrickWord(ctx, 'BATTLE', 128, 38 + oy, 5, false);
-      BC.drawBrickWord(ctx, 'CITY', 128, 82 + oy, 5, false);
+      // Monumental Title Logos
+      BC.drawBrickWord(ctx, 'BATTLE', 128, 36 + oy, 5, false);
+      BC.drawBrickWord(ctx, 'CITY', 128, 80 + oy, 5, false);
 
       // Menu Choices
       const items = ['1 PLAYER', '2 PLAYERS', 'CONSTRUCTION'];
       for (let i = 0; i < items.length; i++) {
-        BC.drawText(ctx, items[i], 92, 138 + i * 16 + oy, '#FCFCFC');
+        const col = isGenshin && i === this.menuIndex && this.titleSlideY === 0 ? '#FCE4A0' : '#FCFCFC';
+        BC.drawText(ctx, items[i], 92, 138 + i * 16 + oy, col);
       }
 
       // Tank Selector Cursor
       if (this.titleSlideY === 0) {
         const tread = Math.floor(this.globalFrame / 4) % 2;
-        const cursorTank = BC.getTankSprite('P0', BC.COLORS.P1, BC.DIR.RIGHT, tread);
-        ctx.drawImage(cursorTank, 68, 134 + this.menuIndex * 16);
+        const cursorTank = BC.getTankSprite('P0', 'P1', BC.DIR.RIGHT, tread);
+        ctx.drawImage(cursorTank, 68, 134 + this.menuIndex * 16, 16, 16);
       }
 
       // Classic Copyright & Credits
@@ -1163,14 +1209,17 @@
     }
 
     _renderStageSelect(ctx) {
+      const isGenshin = BC.getSkin() === 'genshin';
       if (this.curtainPhase === 'opening') {
         this._renderPlayfield(ctx);
+      } else if (isGenshin) {
+        this._drawTeyvatBackdrop(ctx, false);
       } else {
         ctx.fillStyle = BC.COLORS.BLACK;
         ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
       }
 
-      // Top and Bottom Gray Curtains
+      // Top and Bottom Curtains
       ctx.fillStyle = BC.COLORS.HUD_GRAY;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, this.curtainProgress);
       ctx.fillRect(
@@ -1180,12 +1229,18 @@
         this.curtainProgress
       );
 
+      if (isGenshin && this.curtainProgress > 4) {
+        ctx.fillStyle = BC.COLORS.GOLD_TRIM;
+        ctx.fillRect(0, this.curtainProgress - 1.5, BC.SCREEN_WIDTH, 1);
+        ctx.fillRect(0, BC.SCREEN_HEIGHT - this.curtainProgress + 0.5, BC.SCREEN_WIDTH, 1);
+      }
+
       if (this.curtainPhase === 'wait') {
         const label =
           this.stage > BC.TOTAL_CLASSIC_STAGES
             ? 'STAGE CUSTOM'
             : `STAGE ${String(this.stage).padStart(2, ' ')}`;
-        BC.drawText(ctx, label, 128, 114, '#000000', 'center');
+        BC.drawText(ctx, label, 128, 112, isGenshin ? '#FCE4A0' : '#000000', 'center', isGenshin ? 10 : 7.5);
         if (this.canBrowseStage) {
           BC.drawText(ctx, '< SELECT STAGE >', 128, 136, '#3A3A3A', 'center');
           BC.drawText(ctx, 'PRESS START', 128, 152, '#FCFCFC', 'center');
@@ -1194,13 +1249,27 @@
     }
 
     _renderPlayfield(ctx) {
-      // Gray NES border & right sidebar
+      const isGenshin = BC.getSkin() === 'genshin';
+
+      // Outer border & right sidebar
       ctx.fillStyle = BC.COLORS.HUD_GRAY;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
 
-      // Black 208x208 battlefield
-      ctx.fillStyle = BC.COLORS.BLACK;
+      // 208x208 Battlefield Ground
+      ctx.fillStyle = isGenshin ? BC.COLORS.FIELD_BG : BC.COLORS.BLACK;
       ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP, BC.FIELD_SIZE, BC.FIELD_SIZE);
+
+      if (isGenshin) {
+        // Subtle Mondstadt / Liyue stone courtyard floor seams & gold border trim
+        ctx.fillStyle = BC.COLORS.FIELD_GRID;
+        for (let i = 1; i < BC.GRID_BLOCKS; i++) {
+          ctx.fillRect(BC.BORDER_LEFT + i * 16, BC.BORDER_TOP, 0.5, BC.FIELD_SIZE);
+          ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP + i * 16, BC.FIELD_SIZE, 0.5);
+        }
+        ctx.strokeStyle = BC.COLORS.GOLD_TRIM;
+        ctx.lineWidth = 0.75;
+        ctx.strokeRect(BC.BORDER_LEFT - 0.5, BC.BORDER_TOP - 0.5, BC.FIELD_SIZE + 1, BC.FIELD_SIZE + 1);
+      }
 
       // Under-layer terrain (Brick, Steel, Water, Ice, Eagle)
       const waterFrame = Math.floor(this.globalFrame / 28) % 2;
@@ -1270,32 +1339,36 @@
       for (let i = 0; i < remaining; i++) {
         const col = i % 2;
         const row = Math.floor(i / 2);
-        ctx.drawImage(BC.SPRITES.hudEnemy, hx + col * 8, 24 + row * 8);
+        ctx.drawImage(BC.SPRITES.hudEnemy, hx + col * 8, 24 + row * 8, 8, 8);
       }
 
       // 2. Player 1 Lives ("IP" + mini tank + spare lives)
       const p1Spare = Math.max(0, (this.players[0] ? this.players[0].lives - 1 : 0));
       BC.drawText(ctx, 'IP', hx, 128, '#000000');
-      ctx.drawImage(BC.SPRITES.hudLife, hx, 136);
-      BC.drawText(ctx, String(p1Spare), hx + 8, 136, '#000000');
+      ctx.drawImage(BC.SPRITES.hudLife, hx, 136, 8, 8);
+      BC.drawText(ctx, String(p1Spare), hx + 9, 136, '#000000');
 
       // 3. Player 2 Lives (if 2P)
       if (this.isTwoPlayer && this.players[1]) {
         const p2Spare = Math.max(0, this.players[1].lives - 1);
         BC.drawText(ctx, 'IIP', hx - 4, 152, '#000000');
-        ctx.drawImage(BC.SPRITES.hudLife, hx, 160);
-        BC.drawText(ctx, String(p2Spare), hx + 8, 160, '#000000');
+        ctx.drawImage(BC.SPRITES.hudLife, hx, 160, 8, 8);
+        BC.drawText(ctx, String(p2Spare), hx + 9, 160, '#000000');
       }
 
       // 4. Stage Flag & Stage Number
-      ctx.drawImage(BC.SPRITES.flag, hx, 184);
+      ctx.drawImage(BC.SPRITES.flag, hx, 184, 16, 16);
       const stLabel = this.stage > BC.TOTAL_CLASSIC_STAGES ? 'EX' : String(this.stage);
-      BC.drawText(ctx, stLabel, hx + 16, 200, '#000000', 'right');
+      BC.drawText(ctx, stLabel, hx + 16, 202, '#000000', 'right');
     }
 
     _renderTally(ctx) {
-      ctx.fillStyle = BC.COLORS.BLACK;
-      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      if (BC.getSkin() === 'genshin') {
+        this._drawTeyvatBackdrop(ctx, false);
+      } else {
+        ctx.fillStyle = BC.COLORS.BLACK;
+        ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      }
 
       BC.drawText(ctx, 'HI-SCORE', 64, 18, '#D82800');
       BC.drawText(ctx, String(this.hiScore), 152, 18, '#FC9838');
@@ -1317,8 +1390,8 @@
       for (let row = 0; row < 4; row++) {
         const y = 86 + row * 24;
         const ptsPer = BC.ENEMY_STATS[row].points;
-        const icon = BC.getTankSprite('E' + row, BC.COLORS.ENEMY_BASIC, BC.DIR.UP, 0);
-        ctx.drawImage(icon, 120, y - 4);
+        const icon = BC.getTankSprite('E' + row, 'ENEMY_BASIC', BC.DIR.UP, 0);
+        ctx.drawImage(icon, 120, y - 4, 16, 16);
 
         if (row <= this.tallyStep) {
           // P1 column
@@ -1342,8 +1415,8 @@
       }
 
       // Horizontal Divider & TOTAL
-      ctx.fillStyle = '#FCFCFC';
-      ctx.fillRect(64, 178, 128, 2);
+      ctx.fillStyle = BC.getSkin() === 'genshin' ? BC.COLORS.GOLD_TRIM : '#FCFCFC';
+      ctx.fillRect(64, 178, 128, 1.5);
       BC.drawText(ctx, 'TOTAL', 52, 188, '#FCFCFC');
 
       if (this.tallyStep >= 4) {
@@ -1362,8 +1435,12 @@
     }
 
     _renderGameOverScreen(ctx) {
-      ctx.fillStyle = BC.COLORS.BLACK;
-      ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      if (BC.getSkin() === 'genshin') {
+        this._drawTeyvatBackdrop(ctx, false);
+      } else {
+        ctx.fillStyle = BC.COLORS.BLACK;
+        ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
+      }
       BC.drawBrickWord(ctx, 'GAME', 128, 68, 6, true);
       BC.drawBrickWord(ctx, 'OVER', 128, 124, 6, true);
     }

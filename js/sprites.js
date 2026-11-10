@@ -10,7 +10,18 @@
     return c;
   }
 
-  // Render a 16x16 or NxN character grid ('0'=transparent, '1'=dark, '2'=mid, '3'=light, '4'=extra)
+  // =========================================================================
+  // PALETTE RESOLUTION (Accepts key string like 'P1' or raw palette array)
+  // =========================================================================
+  function resolvePalette(paletteOrKey, skin) {
+    if (Array.isArray(paletteOrKey)) return paletteOrKey;
+    const theme = BC.THEMES[skin || BC.getSkin()];
+    return (theme && theme[paletteOrKey]) || (theme && theme.ENEMY_BASIC) || ['#5C5C5C', '#A8A8A8', '#F4F4F4'];
+  }
+
+  // =========================================================================
+  // 1. CLASSIC 1985 FC PIXEL-ART SPRITES
+  // =========================================================================
   function renderBitmap(rows, colors, rotateDir = 0) {
     const h = rows.length;
     const w = rows[0].length;
@@ -27,13 +38,13 @@
 
         let dx = x;
         let dy = y;
-        if (rotateDir === 1) { // RIGHT (90 deg CW)
+        if (rotateDir === 1) {
           dx = h - 1 - y;
           dy = x;
-        } else if (rotateDir === 2) { // DOWN (180 deg)
+        } else if (rotateDir === 2) {
           dx = w - 1 - x;
           dy = h - 1 - y;
-        } else if (rotateDir === 3) { // LEFT (270 deg CW)
+        } else if (rotateDir === 3) {
           dx = y;
           dy = w - 1 - x;
         }
@@ -44,10 +55,9 @@
     return c;
   }
 
-  // Apply alternating tread teeth pattern on columns 1..3 and 12..14 for frame 0 vs frame 1
   function applyTreads(baseRows, frame, treadColorTop = '2', treadColorDark = '1') {
     return baseRows.map((row, y) => {
-      let arr = row.split('');
+      const arr = row.split('');
       for (let x = 0; x < arr.length; x++) {
         if (arr[x] === 'T') {
           arr[x] = ((y + frame) % 2 === 0) ? treadColorTop : treadColorDark;
@@ -57,9 +67,7 @@
     });
   }
 
-  // 16x16 Pixel Art Definitions (facing UP, 'T' = animated tread teeth)
   const TANK_DESIGNS = {
-    // Player Tier 0: Compact classic starter tank
     P0: [
       '.......3........',
       '.......3........',
@@ -78,7 +86,6 @@
       '................',
       '................',
     ],
-    // Player Tier 1: Longer high-velocity barrel + sleek hull
     P1: [
       '.......3........',
       '......333.......',
@@ -97,7 +104,6 @@
       '................',
       '................',
     ],
-    // Player Tier 2: Dual-shot reinforced chassis & wider turret
     P2: [
       '......3.3.......',
       '.......3........',
@@ -116,7 +122,6 @@
       '................',
       '................',
     ],
-    // Player Tier 3: Heavy Steel-Breaker Tank!
     P3: [
       '......333.......',
       '......323.......',
@@ -135,8 +140,6 @@
       '................',
       '................',
     ],
-
-    // Enemy 0: Basic Tank
     E0: [
       '.......3........',
       '.......3........',
@@ -155,7 +158,6 @@
       '................',
       '................',
     ],
-    // Enemy 1: Fast Armored Scout Car
     E1: [
       '.......3........',
       '.......3........',
@@ -174,7 +176,6 @@
       '................',
       '................',
     ],
-    // Enemy 2: Power / Rapid-Fire Tank
     E2: [
       '......3.3.......',
       '.......3........',
@@ -193,7 +194,6 @@
       '................',
       '................',
     ],
-    // Enemy 3: Heavy Armor Tank (4 HP)
     E3: [
       '......333.......',
       '.......3........',
@@ -214,91 +214,46 @@
     ],
   };
 
-  // Make tank 16x16 rows consistently 16 chars wide
   function normalizeDesign(rows) {
     return rows.map((r) => (r + '................').slice(0, 16));
   }
 
-  const tankCache = new Map();
+  function buildClassicSprites() {
+    const C = BC.THEMES.classic;
+    const cache = {};
 
-  BC.getTankSprite = function (designKey, palette, dir, frame) {
-    const key = designKey + '|' + palette.join(',') + '|' + dir + '|' + frame;
-    let cached = tankCache.get(key);
-    if (cached) return cached;
-
-    const base = normalizeDesign(TANK_DESIGNS[designKey]);
-    const withTreads = applyTreads(base, frame & 1, '3', '1');
-    cached = renderBitmap(withTreads, palette, dir);
-    tankCache.set(key, cached);
-    return cached;
-  };
-
-  // Terrain Sprites
-  const tileCache = {};
-
-  function buildTerrainSprites() {
-    const C = BC.COLORS;
-
-    // Brick 4x4 micro-quadrant variations or full 8x8 brick offscreen
-    // Each 8x8 brick sub-tile is drawn by checking 4x4 mask (TL=1, TR=2, BL=4, BR=8)
     const brickFull = createCanvas(8, 8);
     const bg = brickFull.getContext('2d');
     bg.fillStyle = C.BRICK_MORTAR;
     bg.fillRect(0, 0, 8, 8);
-    // Row 0..3 (mortar at y=3)
     bg.fillStyle = C.BRICK_LIGHT;
-    bg.fillRect(0, 0, 3, 1);
-    bg.fillRect(4, 0, 4, 1);
+    bg.fillRect(0, 0, 3, 1); bg.fillRect(4, 0, 4, 1);
     bg.fillStyle = C.BRICK_MID;
-    bg.fillRect(0, 1, 3, 2);
-    bg.fillRect(4, 1, 4, 2);
-    // Dark seam
+    bg.fillRect(0, 1, 3, 2); bg.fillRect(4, 1, 4, 2);
     bg.fillStyle = C.BRICK_DARK;
-    bg.fillRect(2, 1, 1, 2);
-    bg.fillRect(7, 1, 1, 2);
-    // Row 4..7 (staggered brick, mortar at y=7)
+    bg.fillRect(2, 1, 1, 2); bg.fillRect(7, 1, 1, 2);
     bg.fillStyle = C.BRICK_LIGHT;
-    bg.fillRect(0, 4, 1, 1);
-    bg.fillRect(2, 4, 4, 1);
-    bg.fillRect(7, 4, 1, 1);
+    bg.fillRect(0, 4, 1, 1); bg.fillRect(2, 4, 4, 1); bg.fillRect(7, 4, 1, 1);
     bg.fillStyle = C.BRICK_MID;
-    bg.fillRect(0, 5, 1, 2);
-    bg.fillRect(2, 5, 4, 2);
-    bg.fillRect(7, 5, 1, 2);
+    bg.fillRect(0, 5, 1, 2); bg.fillRect(2, 5, 4, 2); bg.fillRect(7, 5, 1, 2);
     bg.fillStyle = C.BRICK_DARK;
-    bg.fillRect(0, 5, 1, 2);
-    bg.fillRect(5, 5, 1, 2);
-    tileCache.brickFull = brickFull;
+    bg.fillRect(0, 5, 1, 2); bg.fillRect(5, 5, 1, 2);
+    cache.brickFull = brickFull;
 
-    // Steel 8x8
     const steel = createCanvas(8, 8);
     const sg = steel.getContext('2d');
-    sg.fillStyle = C.STEEL_MID;
-    sg.fillRect(0, 0, 8, 8);
-    sg.fillStyle = C.STEEL_LIGHT;
-    sg.fillRect(0, 0, 8, 1);
-    sg.fillRect(0, 0, 1, 8);
-    sg.fillStyle = C.STEEL_DARK;
-    sg.fillRect(0, 7, 8, 1);
-    sg.fillRect(7, 0, 1, 8);
-    sg.fillStyle = C.STEEL_LIGHT;
-    sg.fillRect(2, 2, 4, 4);
-    sg.fillStyle = C.STEEL_MID;
-    sg.fillRect(3, 3, 2, 2);
-    tileCache.steel = steel;
+    sg.fillStyle = C.STEEL_MID; sg.fillRect(0, 0, 8, 8);
+    sg.fillStyle = C.STEEL_LIGHT; sg.fillRect(0, 0, 8, 1); sg.fillRect(0, 0, 1, 8);
+    sg.fillStyle = C.STEEL_DARK; sg.fillRect(0, 7, 8, 1); sg.fillRect(7, 0, 1, 8);
+    sg.fillStyle = C.STEEL_LIGHT; sg.fillRect(2, 2, 4, 4);
+    sg.fillStyle = C.STEEL_MID; sg.fillRect(3, 3, 2, 2);
+    cache.steel = steel;
 
-    // Forest 8x8 (transparent black voids so tanks peek slightly through leaf gaps!)
     const forest = createCanvas(8, 8);
     const fg = forest.getContext('2d');
     const forestMap = [
-      '.12321..',
-      '1233221.',
-      '23221232',
-      '121.2332',
-      '.2321221',
-      '1332212.',
-      '221.1232',
-      '.1...121',
+      '.12321..', '1233221.', '23221232', '121.2332',
+      '.2321221', '1332212.', '221.1232', '.1...121',
     ];
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 8; x++) {
@@ -308,10 +263,9 @@
         fg.fillRect(x, y, 1, 1);
       }
     }
-    tileCache.forest = forest;
+    cache.forest = forest;
 
-    // Water 8x8 (2 frames)
-    tileCache.water = [0, 1].map((frame) => {
+    cache.water = [0, 1].map((frame) => {
       const w = createCanvas(8, 8);
       const wg = w.getContext('2d');
       wg.fillStyle = C.WATER_DARK;
@@ -328,166 +282,72 @@
       return w;
     });
 
-    // Ice 8x8
     const ice = createCanvas(8, 8);
     const ig = ice.getContext('2d');
-    ig.fillStyle = C.ICE_MID;
-    ig.fillRect(0, 0, 8, 8);
-    ig.fillStyle = C.ICE_LIGHT;
-    ig.fillRect(0, 0, 8, 1);
-    ig.fillRect(0, 0, 1, 8);
+    ig.fillStyle = C.ICE_MID; ig.fillRect(0, 0, 8, 8);
+    ig.fillStyle = C.ICE_LIGHT; ig.fillRect(0, 0, 8, 1); ig.fillRect(0, 0, 1, 8);
     for (let i = 0; i < 8; i++) {
-      ig.fillRect(i, (7 - i), 1, 1);
-      if (i < 5) ig.fillRect(i, (4 - i), 1, 1);
+      ig.fillRect(i, 7 - i, 1, 1);
+      if (i < 5) ig.fillRect(i, 4 - i, 1, 1);
     }
-    ig.fillStyle = C.ICE_DARK;
-    ig.fillRect(0, 7, 8, 1);
-    ig.fillRect(7, 0, 1, 8);
-    tileCache.ice = ice;
+    ig.fillStyle = C.ICE_DARK; ig.fillRect(0, 7, 8, 1); ig.fillRect(7, 0, 1, 8);
+    cache.ice = ice;
 
-    // Eagle Base 16x16 (Alive)
     const eagleAlive = [
-      '......333.......',
-      '.....33233......',
-      '...11.333.11....',
-      '..12213231221...',
-      '.1233223223321..',
-      '123322333223321.',
-      '123212313212321.',
-      '1221.23332.1221.',
-      '121..12321..121.',
-      '.1...12221...1..',
-      '.....12321......',
-      '....1122211.....',
-      '...122111221....',
-      '...11..1..11....',
-      '................',
-      '................',
+      '......333.......', '.....33233......', '...11.333.11....', '..12213231221...',
+      '.1233223223321..', '123322333223321.', '123212313212321.', '1221.23332.1221.',
+      '121..12321..121.', '.1...12221...1..', '.....12321......', '....1122211.....',
+      '...122111221....', '...11..1..11....', '................', '................',
     ];
-    tileCache.eagleAlive = renderBitmap(eagleAlive, ['#7C7C7C', '#FC9838', '#FCFCFC'], 0);
+    cache.eagleAlive = renderBitmap(eagleAlive, ['#7C7C7C', '#FC9838', '#FCFCFC'], 0);
 
-    // Eagle Base 16x16 (Destroyed)
     const eagleDead = [
-      '................',
-      '................',
-      '....1.....1.....',
-      '...121...12.....',
-      '....1.1.1.......',
-      '..1..111..1.....',
-      '...1221221......',
-      '.1.1211121.1....',
-      '..112111211.....',
-      '..121111121.....',
-      '.11212121211....',
-      '.12111211121....',
-      '1112111112111...',
-      '.11111111111....',
-      '................',
-      '................',
+      '................', '................', '....1.....1.....', '...121...12.....',
+      '....1.1.1.......', '..1..111..1.....', '...1221221......', '.1.1211121.1....',
+      '..112111211.....', '..121111121.....', '.11212121211....', '.12111211121....',
+      '1112111112111...', '.11111111111....', '................', '................',
     ];
-    tileCache.eagleDead = renderBitmap(eagleDead, ['#505050', '#A8A8A8', '#FCFCFC'], 0);
+    cache.eagleDead = renderBitmap(eagleDead, ['#505050', '#A8A8A8', '#FCFCFC'], 0);
 
-    // Bullet 4x4 (0..3 directions)
-    const bulletUp = [
-      '.33.',
-      '3223',
-      '3223',
-      '.11.',
-    ];
-    tileCache.bullets = [0, 1, 2, 3].map((d) =>
-      renderBitmap(bulletUp, ['#808080', '#D8D8D8', '#FCFCFC'], d)
-    );
+    const bulletUp = ['.33.', '3223', '3223', '.11.'];
+    cache.bullets = [0, 1, 2, 3].map((d) => renderBitmap(bulletUp, ['#808080', '#D8D8D8', '#FCFCFC'], d));
 
-    // Spawn Star 16x16 (4 frames)
     const spawnFrames = [
       [
-        '................',
-        '................',
-        '................',
-        '................',
-        '................',
-        '.......3........',
-        '......323.......',
-        '.....32323......',
-        '......323.......',
-        '.......3........',
-        '................',
-        '................',
-        '................',
-        '................',
-        '................',
-        '................',
+        '................','................','................','................',
+        '................','.......3........','......323.......','.....32323......',
+        '......323.......','.......3........','................','................',
+        '................','................','................','................',
       ],
       [
-        '................',
-        '................',
-        '.......3........',
-        '.......3........',
-        '......323.......',
-        '....3.232.3.....',
-        '...322333223....',
-        '..33333333333...',
-        '...322333223....',
-        '....3.232.3.....',
-        '......323.......',
-        '.......3........',
-        '.......3........',
-        '................',
-        '................',
-        '................',
+        '................','................','.......3........','.......3........',
+        '......323.......','....3.232.3.....','...322333223....','..33333333333...',
+        '...322333223....','....3.232.3.....','......323.......','.......3........',
+        '.......3........','................','................','................',
       ],
       [
-        '.......3........',
-        '.......3........',
-        '......323.......',
-        '......232.......',
-        '....3.232.3.....',
-        '...323333323....',
-        '..32333333323...',
-        '333333333333333.',
-        '..32333333323...',
-        '...323333323....',
-        '....3.232.3.....',
-        '......232.......',
-        '......323.......',
-        '.......3........',
-        '.......3........',
-        '................',
+        '.......3........','.......3........','......323.......','......232.......',
+        '....3.232.3.....','...323333323....','..32333333323...','333333333333333.',
+        '..32333333323...','...323333323....','....3.232.3.....','......232.......',
+        '......323.......','.......3........','.......3........','................',
       ],
       [
-        '................',
-        '.......3........',
-        '......323.......',
-        '....2.232.2.....',
-        '...322333223....',
-        '....2333332.....',
-        '..32333333323...',
-        '.3333333333333..',
-        '..32333333323...',
-        '....2333332.....',
-        '...322333223....',
-        '....2.232.2.....',
-        '......323.......',
-        '.......3........',
-        '................',
-        '................',
+        '................','.......3........','......323.......','....2.232.2.....',
+        '...322333223....','....2333332.....','..32333333323...','.3333333333333..',
+        '..32333333323...','....2333332.....','...322333223....','....2.232.2.....',
+        '......323.......','.......3........','................','................',
       ],
     ];
-    tileCache.spawnStars = spawnFrames.map((f) =>
-      renderBitmap(f, ['#707070', '#BCBCBC', '#FCFCFC'], 0)
-    );
+    cache.spawnStars = spawnFrames.map((f) => renderBitmap(f, ['#707070', '#BCBCBC', '#FCFCFC'], 0));
 
-    // Shield 16x16 (2 alternating shimmer frames)
-    tileCache.shield = [0, 1].map((f) => {
+    cache.shield = [0, 1].map((f) => {
       const c = createCanvas(16, 16);
       const g = c.getContext('2d');
       g.fillStyle = '#FCFCFC';
       for (let i = 0; i < 16; i++) {
         if ((i + f) % 2 === 0) {
-          g.fillRect(i, 0, 1, 1);
-          g.fillRect(i, 15, 1, 1);
-          g.fillRect(0, i, 1, 1);
-          g.fillRect(15, i, 1, 1);
+          g.fillRect(i, 0, 1, 1); g.fillRect(i, 15, 1, 1);
+          g.fillRect(0, i, 1, 1); g.fillRect(15, i, 1, 1);
         }
       }
       g.fillStyle = '#A8A8A8';
@@ -501,97 +361,47 @@
       return c;
     });
 
-    // Power-Up Icons (16x16)
     const powerupArt = {
       [BC.POWERUP.HELMET]: [
-        '.....333333.....',
-        '...3322222233...',
-        '..322222222223..',
-        '..322233332223..',
-        '.32223222232223.',
-        '.32222222222223.',
-        '.31111111111113.',
-        '..111111111111..',
-        '..112222222211..',
-        '...1111111111...',
+        '.....333333.....', '...3322222233...', '..322222222223..', '..322233332223..',
+        '.32223222232223.', '.32222222222223.', '.31111111111113.', '..111111111111..',
+        '..112222222211..', '...1111111111...',
       ],
       [BC.POWERUP.CLOCK]: [
-        '.....33333......',
-        '.......2........',
-        '...333333333....',
-        '..32222322223...',
-        '.3222223222223..',
-        '.3222223332223..',
-        '.3222222222223..',
-        '..32222222223...',
-        '...333333333....',
-        '................',
+        '.....33333......', '.......2........', '...333333333....', '..32222322223...',
+        '.3222223222223..', '.3222223332223..', '.3222222222223..', '..32222222223...',
+        '...333333333....', '................',
       ],
       [BC.POWERUP.SHOVEL]: [
-        '.......3333.....',
-        '......322233....',
-        '.....3222223....',
-        '.....322223.....',
-        '......3113......',
-        '......111.......',
-        '.....111........',
-        '....111.........',
-        '...331..........',
-        '..333...........',
+        '.......3333.....', '......322233....', '.....3222223....', '.....322223.....',
+        '......3113......', '......111.......', '.....111........', '....111.........',
+        '...331..........', '..333...........',
       ],
       [BC.POWERUP.STAR]: [
-        '.......3........',
-        '......323.......',
-        '......323.......',
-        '.3333322233333..',
-        '..32222222223...',
-        '...322222223....',
-        '....3222223.....',
-        '...3223.3223....',
-        '..323.....323...',
-        '..3.........3...',
+        '.......3........', '......323.......', '......323.......', '.3333322233333..',
+        '..32222222223...', '...322222223....', '....3222223.....', '...3223.3223....',
+        '..323.....323...', '..3.........3...',
       ],
       [BC.POWERUP.GRENADE]: [
-        '......3333......',
-        '.......22.......',
-        '....3333333.....',
-        '...322121223....',
-        '..32121212123...',
-        '..32212121223...',
-        '..32121212123...',
-        '...322121223....',
-        '....3333333.....',
-        '................',
+        '......3333......', '.......22.......', '....3333333.....', '...322121223....',
+        '..32121212123...', '..32212121223...', '..32121212123...', '...322121223....',
+        '....3333333.....', '................',
       ],
       [BC.POWERUP.TANK]: [
-        '.......3........',
-        '...33..3..33....',
-        '...33.323.33....',
-        '...332232233....',
-        '...332333233....',
-        '...332232233....',
-        '...331222133....',
-        '...331111133....',
-        '...33.....33....',
-        '................',
+        '.......3........', '...33..3..33....', '...33.323.33....', '...332232233....',
+        '...332333233....', '...332232233....', '...331222133....', '...331111133....',
+        '...33.....33....', '................',
       ],
     };
 
-    tileCache.powerups = {};
+    cache.powerups = {};
     for (const [ptype, art] of Object.entries(powerupArt)) {
       const badge = createCanvas(16, 16);
       const pg = badge.getContext('2d');
-      // Outer metallic 3D beveled badge frame
-      pg.fillStyle = '#FCFCFC';
-      pg.fillRect(0, 0, 16, 16);
-      pg.fillStyle = '#585858';
-      pg.fillRect(1, 1, 15, 15);
-      pg.fillStyle = '#2038EC';
-      pg.fillRect(1, 1, 14, 14);
-      pg.fillStyle = '#000000';
-      pg.fillRect(2, 2, 12, 12);
-
-      // Inner icon centered at (0, 3)
+      pg.fillStyle = '#FCFCFC'; pg.fillRect(0, 0, 16, 16);
+      pg.fillStyle = '#585858'; pg.fillRect(1, 1, 15, 15);
+      pg.fillStyle = '#2038EC'; pg.fillRect(1, 1, 14, 14);
+      pg.fillStyle = '#000000'; pg.fillRect(2, 2, 12, 12);
       const iconColors =
         Number(ptype) === BC.POWERUP.STAR || Number(ptype) === BC.POWERUP.TANK
           ? ['#945800', '#E49818', '#F8E470']
@@ -602,126 +412,818 @@
         0
       );
       pg.drawImage(iconCanvas, 0, 3);
-      tileCache.powerups[ptype] = badge;
+      cache.powerups[ptype] = badge;
     }
 
-    // HUD Enemy remaining icon (8x8)
     const hudEnemy = [
-      '.11..11.',
-      '.121121.',
-      '.122221.',
-      '.112211.',
-      '.122221.',
-      '.11..11.',
-      '........',
-      '........',
+      '.11..11.', '.121121.', '.122221.', '.112211.',
+      '.122221.', '.11..11.', '........', '........',
     ];
-    tileCache.hudEnemy = renderBitmap(hudEnemy, ['#000000', '#E05000', '#FC9838'], 0);
+    cache.hudEnemy = renderBitmap(hudEnemy, ['#000000', '#E05000', '#FC9838'], 0);
 
-    // HUD Player Life icon (8x8)
     const hudLife = [
-      '...2....',
-      '.2.2.2..',
-      '.22222..',
-      '.23232..',
-      '.22222..',
-      '.2...2..',
-      '........',
-      '........',
+      '...2....', '.2.2.2..', '.22222..', '.23232..',
+      '.22222..', '.2...2..', '........', '........',
     ];
-    tileCache.hudLife = renderBitmap(hudLife, ['#8C5800', '#E49818', '#F8E470'], 0);
+    cache.hudLife = renderBitmap(hudLife, ['#8C5800', '#E49818', '#F8E470'], 0);
 
-    // HUD Stage Flag (16x16)
     const flag = [
-      '..1.............',
-      '..122222222222..',
-      '..123333333332..',
-      '..12333222332...',
-      '..123322222.....',
-      '..123322........',
-      '..1222..........',
-      '..1.............',
-      '..1.............',
-      '..1.............',
-      '..1.............',
-      '..1.............',
-      '..1.............',
-      '.111............',
-      '11111...........',
-      '................',
+      '..1.............', '..122222222222..', '..123333333332..', '..12333222332...',
+      '..123322222.....', '..123322........', '..1222..........', '..1.............',
+      '..1.............', '..1.............', '..1.............', '..1.............',
+      '..1.............', '.111............', '11111...........', '................',
     ];
-    tileCache.flag = renderBitmap(flag, ['#000000', '#D82800', '#FC9838'], 0);
+    cache.flag = renderBitmap(flag, ['#000000', '#D82800', '#FC9838'], 0);
+
+    return cache;
   }
 
-  buildTerrainSprites();
+  // =========================================================================
+  // 2. GENSHIN-INSPIRED HIGH-DEFINITION 2D CEL-SHADED ARTWORK
+  //    (Supersampled 128x128 for 16x16 entities, 64x64 for 8x8 tiles)
+  // =========================================================================
+  function roundRectPath(g, x, y, w, h, r) {
+    const rad = Math.min(r, w / 2, h / 2);
+    g.beginPath();
+    g.moveTo(x + rad, y);
+    g.lineTo(x + w - rad, y);
+    g.quadraticCurveTo(x + w, y, x + w, y + rad);
+    g.lineTo(x + w, y + h - rad);
+    g.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    g.lineTo(x + rad, y + h);
+    g.quadraticCurveTo(x, y + h, x, y + h - rad);
+    g.lineTo(x, y + rad);
+    g.quadraticCurveTo(x, y, x + rad, y);
+    g.closePath();
+  }
 
-  BC.SPRITES = tileCache;
-
-  // Draw an 8x8 brick tile with 4-bit quadrant mask (TL=1, TR=2, BL=4, BR=8)
-  BC.drawBrickSubtile = function (ctx, px, py, mask) {
-    if (mask === 0) return;
-    if (mask === 0x0f) {
-      ctx.drawImage(tileCache.brickFull, px, py);
-      return;
+  function drawFourPointStar(g, cx, cy, outerR, innerR) {
+    g.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const r = i % 2 === 0 ? outerR : innerR;
+      const a = (i * Math.PI) / 4 - Math.PI / 2;
+      const px = cx + Math.cos(a) * r;
+      const py = cy + Math.sin(a) * r;
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
     }
-    if (mask & 1) ctx.drawImage(tileCache.brickFull, 0, 0, 4, 4, px, py, 4, 4);
-    if (mask & 2) ctx.drawImage(tileCache.brickFull, 4, 0, 4, 4, px + 4, py, 4, 4);
-    if (mask & 4) ctx.drawImage(tileCache.brickFull, 0, 4, 4, 4, px, py + 4, 4, 4);
-    if (mask & 8) ctx.drawImage(tileCache.brickFull, 4, 4, 4, 4, px + 4, py + 4, 4, 4);
+    g.closePath();
+  }
+
+  function drawGenshinTankHD(designKey, pal, dir, frame) {
+    const SZ = 128; // 8x supersampled over logical 16px -> razor-sharp 2x SSAA on 64px target!
+    const c = createCanvas(SZ, SZ);
+    const g = c.getContext('2d');
+    if (typeof g.beginPath !== 'function') return c;
+
+    const [cDark, cMid, cLight, cCoreRaw] = pal;
+    const cCore = cCoreRaw || '#7AF0F8';
+    const isPlayer = designKey.startsWith('P');
+    const tierOrType = parseInt(designKey[1], 10) || 0;
+
+    g.save();
+    g.translate(SZ / 2, SZ / 2);
+    g.rotate((dir * Math.PI) / 2);
+    g.translate(-SZ / 2, -SZ / 2);
+
+    // Subtle ground drop shadow
+    g.fillStyle = 'rgba(8, 12, 22, 0.45)';
+    roundRectPath(g, 14, 22, 100, 96, 16);
+    g.fill();
+
+    // 1. Articulated Treads (left & right)
+    const treadW = designKey === 'E1' ? 18 : 22;
+    const treadXLeft = designKey === 'E0' ? 16 : 10;
+    const treadXRight = SZ - treadXLeft - treadW;
+    const treadY = 18;
+    const treadH = 96;
+
+    for (const tx of [treadXLeft, treadXRight]) {
+      // Tread dark metal base
+      g.fillStyle = '#252B3B';
+      roundRectPath(g, tx, treadY, treadW, treadH, 8);
+      g.fill();
+
+      // Animated cel-shaded tread pads
+      const shift = (frame & 1) * 8;
+      for (let py = treadY + 4 + shift; py < treadY + treadH - 6; py += 16) {
+        g.fillStyle = cDark;
+        roundRectPath(g, tx + 2, py, treadW - 4, 8, 3);
+        g.fill();
+        g.fillStyle = 'rgba(255,255,255,0.22)';
+        g.fillRect(tx + 4, py + 1, treadW - 8, 2);
+      }
+
+      // Gold/steel trim edge for player / heavy armor
+      g.lineWidth = 4;
+      g.strokeStyle = '#151822';
+      roundRectPath(g, tx, treadY, treadW, treadH, 8);
+      g.stroke();
+
+      if (isPlayer || tierOrType >= 2) {
+        g.fillStyle = isPlayer ? '#D3BC8E' : cMid;
+        g.fillRect(tx + (tx < 64 ? treadW - 4 : 0), treadY + 12, 4, treadH - 24);
+      }
+    }
+
+    // 2. Main Hull (Cel-shaded anime mecha chassis)
+    const hullX = treadXLeft + treadW - 4;
+    const hullW = SZ - hullX * 2;
+    const hullY = designKey === 'E1' ? 28 : 24;
+    const hullH = designKey === 'E1' ? 84 : 88;
+
+    const hullGrad = g.createLinearGradient(hullX, hullY, hullX + hullW, hullY + hullH);
+    hullGrad.addColorStop(0, cLight);
+    hullGrad.addColorStop(0.45, cMid);
+    hullGrad.addColorStop(1, cDark);
+    g.fillStyle = hullGrad;
+    roundRectPath(g, hullX, hullY, hullW, hullH, 14);
+    g.fill();
+
+    // Cel highlight band on top-left shoulder
+    g.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    roundRectPath(g, hullX + 6, hullY + 6, hullW - 18, 20, 8);
+    g.fill();
+
+    // Shoulder wing / armor plates on higher tiers
+    if ((isPlayer && tierOrType >= 2) || (!isPlayer && tierOrType === 3)) {
+      g.fillStyle = isPlayer ? '#F5E2AC' : cLight;
+      roundRectPath(g, hullX - 4, hullY + 26, 12, 40, 4);
+      g.fill();
+      roundRectPath(g, hullX + hullW - 8, hullY + 26, 12, 40, 4);
+      g.fill();
+    }
+
+    // Clean dark anime hull ink outline
+    g.lineWidth = 4.5;
+    g.strokeStyle = '#151822';
+    roundRectPath(g, hullX, hullY, hullW, hullH, 14);
+    g.stroke();
+
+    // Decorative Ruin/Favonius chevron trim on rear deck
+    g.strokeStyle = isPlayer ? '#FFF4CE' : 'rgba(255,255,255,0.35)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(46, hullY + hullH - 18);
+    g.lineTo(64, hullY + hullH - 10);
+    g.lineTo(82, hullY + hullH - 18);
+    g.stroke();
+
+    // 3. Cannon Barrel (distinct by tier / enemy archetype)
+    const barrelW =
+      (isPlayer && tierOrType === 3) || (!isPlayer && tierOrType === 3) ? 14 :
+      (isPlayer && tierOrType >= 1) || (!isPlayer && tierOrType === 2) ? 11 : 9;
+    const barrelTop = isPlayer && tierOrType >= 1 ? 2 : 6;
+    const barrelLen = 58 - barrelTop;
+
+    const bGrad = g.createLinearGradient(64 - barrelW / 2, 0, 64 + barrelW / 2, 0);
+    bGrad.addColorStop(0, cLight);
+    bGrad.addColorStop(0.55, cMid);
+    bGrad.addColorStop(1, cDark);
+    g.fillStyle = bGrad;
+    roundRectPath(g, 64 - barrelW / 2, barrelTop, barrelW, barrelLen, 4);
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeStyle = '#151822';
+    roundRectPath(g, 64 - barrelW / 2, barrelTop, barrelW, barrelLen, 4);
+    g.stroke();
+
+    // Muzzle brake / glowing elemental tip for upgraded & power tanks
+    if ((isPlayer && tierOrType >= 1) || (!isPlayer && tierOrType >= 2)) {
+      g.fillStyle = cCore;
+      roundRectPath(g, 64 - barrelW * 0.72, barrelTop, barrelW * 1.44, 10, 4);
+      g.fill();
+      g.lineWidth = 3.5;
+      g.strokeStyle = '#151822';
+      roundRectPath(g, 64 - barrelW * 0.72, barrelTop, barrelW * 1.44, 10, 4);
+      g.stroke();
+    }
+
+    // 4. Turret Dome (rounded cel-shaded dome with glowing elemental Vision core)
+    const turR = designKey === 'E3' || (isPlayer && tierOrType === 3) ? 26 : 22;
+    const turCY = 66;
+    const turGrad = g.createRadialGradient(56, turCY - 8, 4, 64, turCY, turR);
+    turGrad.addColorStop(0, '#FFFFFF');
+    turGrad.addColorStop(0.25, cLight);
+    turGrad.addColorStop(0.75, cMid);
+    turGrad.addColorStop(1, cDark);
+
+    g.fillStyle = turGrad;
+    g.beginPath();
+    g.arc(64, turCY, turR, 0, Math.PI * 2);
+    g.fill();
+
+    // Gold/metal ring around turret
+    g.lineWidth = 4.5;
+    g.strokeStyle = '#151822';
+    g.beginPath();
+    g.arc(64, turCY, turR, 0, Math.PI * 2);
+    g.stroke();
+
+    if (isPlayer && tierOrType >= 2) {
+      g.lineWidth = 2.5;
+      g.strokeStyle = '#FFF5D0';
+      g.beginPath();
+      g.arc(64, turCY, turR - 4, -Math.PI * 0.85, -Math.PI * 0.15);
+      g.stroke();
+    }
+
+    // Glowing Elemental Vision Core Gem at center of turret
+    const coreGrad = g.createRadialGradient(64, turCY - 2, 1, 64, turCY, 10);
+    coreGrad.addColorStop(0, '#FFFFFF');
+    coreGrad.addColorStop(0.45, cCore);
+    coreGrad.addColorStop(1, cDark);
+    g.fillStyle = coreGrad;
+    drawFourPointStar(g, 64, turCY, isPlayer ? 10 : 9, 4.5);
+    g.fill();
+    g.lineWidth = 2.5;
+    g.strokeStyle = '#151822';
+    g.stroke();
+
+    g.restore();
+    return c;
+  }
+
+  function buildGenshinSprites() {
+    const C = BC.THEMES.genshin;
+    const cache = {};
+
+    // Check if headless Node mock (no vector canvas APIs) -> fallback gracefully
+    const probe = createCanvas(4, 4).getContext('2d');
+    if (typeof probe.beginPath !== 'function' || typeof probe.createLinearGradient !== 'function') {
+      return buildClassicSprites();
+    }
+
+    // 1. Brick 64x64 (Mondstadt / Liyue seamless warm stone masonry, 4 quadrants of 32x32)
+    const brick = createCanvas(64, 64);
+    const bg = brick.getContext('2d');
+    bg.fillStyle = '#572C24';
+    bg.fillRect(0, 0, 64, 64);
+    const drawBrickBlock = (x, y, w, h) => {
+      const gr = bg.createLinearGradient(x, y, x, y + h);
+      gr.addColorStop(0, '#ED996B');
+      gr.addColorStop(0.55, C.BRICK_MID);
+      gr.addColorStop(1, '#8C432D');
+      bg.fillStyle = gr;
+      roundRectPath(bg, x + 0.8, y + 0.8, w - 1.6, h - 1.6, 3);
+      bg.fill();
+      bg.fillStyle = 'rgba(255, 240, 212, 0.34)';
+      bg.fillRect(x + 2, y + 1.5, w - 4, 2.5);
+      bg.lineWidth = 1.4;
+      bg.strokeStyle = 'rgba(48, 22, 18, 0.72)';
+      roundRectPath(bg, x + 0.8, y + 0.8, w - 1.6, h - 1.6, 3);
+      bg.stroke();
+    };
+    drawBrickBlock(0, 0, 32, 16);
+    drawBrickBlock(32, 0, 32, 16);
+    drawBrickBlock(0, 16, 16, 16);
+    drawBrickBlock(16, 16, 32, 16);
+    drawBrickBlock(48, 16, 16, 16);
+    drawBrickBlock(0, 32, 32, 16);
+    drawBrickBlock(32, 32, 32, 16);
+    drawBrickBlock(0, 48, 16, 16);
+    drawBrickBlock(16, 48, 32, 16);
+    drawBrickBlock(48, 48, 16, 16);
+    cache.brickFull = brick;
+
+    // 2. Steel 64x64 (Khaenri'ah / Ruin Guard Gold-Trimmed Slate Armor)
+    const steel = createCanvas(64, 64);
+    const sg = steel.getContext('2d');
+    const stGrad = sg.createLinearGradient(0, 0, 64, 64);
+    stGrad.addColorStop(0, '#8197B8');
+    stGrad.addColorStop(0.5, C.STEEL_MID);
+    stGrad.addColorStop(1, C.STEEL_DARK);
+    sg.fillStyle = stGrad;
+    roundRectPath(sg, 1, 1, 62, 62, 6);
+    sg.fill();
+    // Champagne gold chamfered inner border
+    sg.lineWidth = 4;
+    sg.strokeStyle = C.STEEL_LIGHT;
+    roundRectPath(sg, 6, 6, 52, 52, 4);
+    sg.stroke();
+    // Diagonal anime metal specular slash
+    sg.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    sg.beginPath();
+    sg.moveTo(10, 10); sg.lineTo(34, 10); sg.lineTo(10, 34); sg.closePath(); sg.fill();
+    // Center glowing cyan rune diamond
+    sg.fillStyle = C.STEEL_CORE;
+    drawFourPointStar(sg, 32, 32, 11, 5);
+    sg.fill();
+    sg.lineWidth = 3;
+    sg.strokeStyle = '#182030';
+    sg.stroke();
+    // Outer ink frame
+    sg.lineWidth = 3;
+    sg.strokeStyle = '#141923';
+    roundRectPath(sg, 1, 1, 62, 62, 6);
+    sg.stroke();
+    cache.steel = steel;
+
+    // 3. Forest 64x64 (Seamless lush Teyvat emerald canopy)
+    const forest = createCanvas(64, 64);
+    const fg = forest.getContext('2d');
+    const blobs = [
+      // Seamless base canopy filling inner gaps cleanly while keeping soft rounded corners
+      [32, 32, 28, C.FOREST_DARK],
+      [0, 16, 22, C.FOREST_DARK], [64, 16, 22, C.FOREST_DARK],
+      [0, 48, 22, C.FOREST_DARK], [64, 48, 22, C.FOREST_DARK],
+      [16, 0, 22, C.FOREST_DARK], [48, 0, 22, C.FOREST_DARK],
+      [16, 64, 22, C.FOREST_DARK], [48, 64, 22, C.FOREST_DARK],
+      [20, 20, 24, C.FOREST_DARK], [44, 22, 24, C.FOREST_DARK],
+      [22, 44, 24, C.FOREST_DARK], [46, 46, 23, C.FOREST_DARK],
+      // Emerald mid-tone foliage clusters
+      [16, 18, 18, C.FOREST_MID],  [46, 18, 18, C.FOREST_MID],
+      [18, 46, 18, C.FOREST_MID],  [46, 46, 17, C.FOREST_MID],
+      [32, 32, 18, C.FOREST_MID],
+      // Sunlit lime leaf highlights
+      [15, 13, 10, C.FOREST_LIGHT], [45, 14, 11, C.FOREST_LIGHT],
+      [30, 28, 11, C.FOREST_LIGHT], [17, 42, 10, C.FOREST_LIGHT],
+      [46, 42, 9, C.FOREST_LIGHT],
+    ];
+    for (const [bx, by, br, col] of blobs) {
+      fg.fillStyle = col;
+      fg.beginPath();
+      fg.arc(bx, by, br, 0, Math.PI * 2);
+      fg.fill();
+    }
+    fg.fillStyle = '#F2FFC4';
+    drawFourPointStar(fg, 32, 24, 4.5, 1.5); fg.fill();
+    drawFourPointStar(fg, 50, 48, 3.5, 1.2); fg.fill();
+    cache.forest = forest;
+
+    // 4. Water 64x64 (2 luminous Hydro frames)
+    cache.water = [0, 1].map((frame) => {
+      const w = createCanvas(64, 64);
+      const wg = w.getContext('2d');
+      const wGrad = wg.createLinearGradient(0, 0, 0, 64);
+      wGrad.addColorStop(0, C.WATER_DARK);
+      wGrad.addColorStop(0.5, '#2075C4');
+      wGrad.addColorStop(1, C.WATER_DARK);
+      wg.fillStyle = wGrad;
+      wg.fillRect(0, 0, 64, 64);
+
+      const off = frame * 16;
+      wg.strokeStyle = C.WATER_MID;
+      wg.lineWidth = 4;
+      wg.lineCap = 'round';
+      for (const wy of [16, 36, 54]) {
+        wg.beginPath();
+        wg.moveTo(-16 + off, wy);
+        wg.quadraticCurveTo(0 + off, wy - 6, 16 + off, wy);
+        wg.quadraticCurveTo(32 + off, wy + 6, 48 + off, wy);
+        wg.quadraticCurveTo(64 + off, wy - 6, 80 + off, wy);
+        wg.stroke();
+      }
+      wg.strokeStyle = C.WATER_LIGHT;
+      wg.lineWidth = 2;
+      wg.beginPath();
+      wg.moveTo(6 + off * 0.5, 14);
+      wg.quadraticCurveTo(18 + off * 0.5, 10, 30 + off * 0.5, 14);
+      wg.moveTo(28 - off * 0.4, 44);
+      wg.quadraticCurveTo(40 - off * 0.4, 40, 52 - off * 0.4, 44);
+      wg.stroke();
+      return w;
+    });
+
+    // 5. Ice 64x64 (Dragonspine Cryo Crystal)
+    const ice = createCanvas(64, 64);
+    const ig = ice.getContext('2d');
+    const iGrad = ig.createLinearGradient(0, 0, 64, 64);
+    iGrad.addColorStop(0, C.ICE_LIGHT);
+    iGrad.addColorStop(0.5, C.ICE_MID);
+    iGrad.addColorStop(1, C.ICE_DARK);
+    ig.fillStyle = iGrad;
+    ig.fillRect(0, 0, 64, 64);
+    ig.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ig.beginPath();
+    ig.moveTo(0, 20); ig.lineTo(20, 0); ig.lineTo(36, 0); ig.lineTo(0, 36); ig.closePath(); ig.fill();
+    ig.beginPath();
+    ig.moveTo(28, 64); ig.lineTo(64, 28); ig.lineTo(64, 44); ig.lineTo(44, 64); ig.closePath(); ig.fill();
+    ig.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ig.lineWidth = 2;
+    ig.strokeRect(1, 1, 62, 62);
+    ig.fillStyle = '#FFFFFF';
+    drawFourPointStar(ig, 46, 18, 5, 1.8); ig.fill();
+    cache.ice = ice;
+
+    // 6. Eagle Base 128x128 (Celestia / Knights of Favonius Golden Winged Shrine)
+    const ea = createCanvas(128, 128);
+    const eg = ea.getContext('2d');
+    // Circular gold rune altar
+    const altarGrad = eg.createRadialGradient(64, 64, 8, 64, 64, 58);
+    altarGrad.addColorStop(0, 'rgba(94, 231, 223, 0.4)');
+    altarGrad.addColorStop(0.7, 'rgba(211, 188, 142, 0.25)');
+    altarGrad.addColorStop(1, 'rgba(20, 26, 40, 0)');
+    eg.fillStyle = altarGrad;
+    eg.beginPath(); eg.arc(64, 64, 58, 0, Math.PI * 2); eg.fill();
+
+    eg.strokeStyle = '#D3BC8E';
+    eg.lineWidth = 4;
+    eg.beginPath(); eg.arc(64, 64, 48, 0, Math.PI * 2); eg.stroke();
+
+    // Stylized Golden Eagle Wings
+    const wingGrad = eg.createLinearGradient(0, 24, 0, 108);
+    wingGrad.addColorStop(0, '#FFF8D6');
+    wingGrad.addColorStop(0.5, '#F2C96B');
+    wingGrad.addColorStop(1, '#A66F24');
+    eg.fillStyle = wingGrad;
+    eg.strokeStyle = '#1B1D29';
+    eg.lineWidth = 4;
+
+    // Left & Right feathered wings
+    for (const s of [-1, 1]) {
+      eg.beginPath();
+      eg.moveTo(64 + s * 10, 56);
+      eg.lineTo(64 + s * 54, 28);
+      eg.lineTo(64 + s * 46, 52);
+      eg.lineTo(64 + s * 52, 60);
+      eg.lineTo(64 + s * 36, 72);
+      eg.lineTo(64 + s * 42, 80);
+      eg.lineTo(64 + s * 14, 84);
+      eg.closePath();
+      eg.fill();
+      eg.stroke();
+    }
+
+    // Central Shield Crest + Head
+    eg.fillStyle = wingGrad;
+    eg.beginPath();
+    eg.moveTo(64, 18);
+    eg.lineTo(74, 34);
+    eg.lineTo(80, 74);
+    eg.lineTo(64, 108);
+    eg.lineTo(48, 74);
+    eg.lineTo(54, 34);
+    eg.closePath();
+    eg.fill();
+    eg.stroke();
+
+    // Radiant Aqua Core Gem
+    const gemGrad = eg.createRadialGradient(64, 62, 2, 64, 62, 15);
+    gemGrad.addColorStop(0, '#FFFFFF');
+    gemGrad.addColorStop(0.5, '#5EE7DF');
+    gemGrad.addColorStop(1, '#1A7885');
+    eg.fillStyle = gemGrad;
+    drawFourPointStar(eg, 64, 62, 16, 7);
+    eg.fill();
+    eg.lineWidth = 3;
+    eg.strokeStyle = '#182030';
+    eg.stroke();
+    cache.eagleAlive = ea;
+
+    // Destroyed Shrine
+    const ed = createCanvas(128, 128);
+    const edg = ed.getContext('2d');
+    edg.strokeStyle = '#505666';
+    edg.lineWidth = 4;
+    edg.beginPath(); edg.arc(64, 64, 46, 0.3, 5.7); edg.stroke();
+    edg.fillStyle = '#3C4252';
+    edg.strokeStyle = '#141720';
+    edg.lineWidth = 4;
+    for (const [rx, ry, rw, rh] of [[24, 58, 28, 22], [58, 74, 34, 24], [40, 42, 26, 20], [74, 48, 24, 26]]) {
+      roundRectPath(edg, rx, ry, rw, rh, 5);
+      edg.fill();
+      edg.stroke();
+    }
+    // Faint glowing red embers
+    edg.fillStyle = '#FF584C';
+    edg.beginPath(); edg.arc(54, 66, 5, 0, Math.PI * 2); edg.fill();
+    edg.beginPath(); edg.arc(72, 58, 4, 0, Math.PI * 2); edg.fill();
+    cache.eagleDead = ed;
+
+    // 7. Bullets 32x32 (4 directions)
+    cache.bullets = [0, 1, 2, 3].map((d) => {
+      const bc = createCanvas(32, 32);
+      const bg2 = bc.getContext('2d');
+      bg2.save();
+      bg2.translate(16, 16);
+      bg2.rotate((d * Math.PI) / 2);
+      const bGlow = bg2.createRadialGradient(0, -2, 2, 0, 0, 14);
+      bGlow.addColorStop(0, '#FFFFFF');
+      bGlow.addColorStop(0.45, '#FFE885');
+      bGlow.addColorStop(0.85, 'rgba(255, 145, 50, 0.7)');
+      bGlow.addColorStop(1, 'rgba(255, 100, 30, 0)');
+      bg2.fillStyle = bGlow;
+      bg2.beginPath();
+      bg2.arc(0, 0, 14, 0, Math.PI * 2);
+      bg2.fill();
+
+      bg2.fillStyle = '#FFFFFF';
+      bg2.beginPath();
+      bg2.ellipse(0, -1, 5, 9, 0, 0, Math.PI * 2);
+      bg2.fill();
+      bg2.restore();
+      return bc;
+    });
+
+    // 8. Spawn Wish Stars 128x128 (4 frames)
+    cache.spawnStars = [0.35, 0.6, 0.92, 0.68].map((scale, idx) => {
+      const sc = createCanvas(128, 128);
+      const sg2 = sc.getContext('2d');
+      const r = 52 * scale;
+      const halo = sg2.createRadialGradient(64, 64, 2, 64, 64, r);
+      halo.addColorStop(0, '#FFFFFF');
+      halo.addColorStop(0.35, idx % 2 === 0 ? '#FFE894' : '#8CF5FF');
+      halo.addColorStop(1, 'rgba(140, 245, 255, 0)');
+      sg2.fillStyle = halo;
+      sg2.beginPath(); sg2.arc(64, 64, r, 0, Math.PI * 2); sg2.fill();
+
+      sg2.fillStyle = '#FFFFFF';
+      drawFourPointStar(sg2, 64, 64, r, r * 0.28);
+      sg2.fill();
+      return sc;
+    });
+
+    // 9. Elemental Geo/Anemo Shield 128x128 (2 alternating phases)
+    cache.shield = [0, 1].map((f) => {
+      const sh = createCanvas(128, 128);
+      const sg2 = sh.getContext('2d');
+      const grad = sg2.createRadialGradient(64, 64, 42, 64, 64, 62);
+      grad.addColorStop(0, 'rgba(94, 231, 223, 0)');
+      grad.addColorStop(0.7, 'rgba(255, 232, 130, 0.35)');
+      grad.addColorStop(1, 'rgba(94, 231, 223, 0)');
+      sg2.fillStyle = grad;
+      sg2.beginPath(); sg2.arc(64, 64, 62, 0, Math.PI * 2); sg2.fill();
+
+      sg2.strokeStyle = f === 0 ? '#FFE885' : '#7BF0E8';
+      sg2.lineWidth = 4;
+      sg2.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3 + f * 0.25;
+        const px = 64 + Math.cos(a) * 56;
+        const py = 64 + Math.sin(a) * 56;
+        if (i === 0) sg2.moveTo(px, py);
+        else sg2.lineTo(px, py);
+      }
+      sg2.closePath();
+      sg2.stroke();
+      return sh;
+    });
+
+    // 10. 6 Power-Ups 128x128 (Genshin Talisman Badges)
+    cache.powerups = {};
+    const puColors = {
+      [BC.POWERUP.HELMET]: '#5EE7DF',
+      [BC.POWERUP.CLOCK]: '#A6C8FF',
+      [BC.POWERUP.SHOVEL]: '#F5B849',
+      [BC.POWERUP.STAR]: '#8AE8FF',
+      [BC.POWERUP.GRENADE]: '#FF6E5A',
+      [BC.POWERUP.TANK]: '#FFE074',
+    };
+    for (const type of Object.values(BC.POWERUP)) {
+      const pc = createCanvas(128, 128);
+      const pg = pc.getContext('2d');
+      const glowCol = puColors[type];
+
+      // Dark slate rounded octagonal frame + champagne gold rim
+      const cardGrad = pg.createLinearGradient(0, 12, 0, 116);
+      cardGrad.addColorStop(0, '#2B354D');
+      cardGrad.addColorStop(1, '#141926');
+      pg.fillStyle = cardGrad;
+      roundRectPath(pg, 12, 12, 104, 104, 20);
+      pg.fill();
+
+      const innerGlow = pg.createRadialGradient(64, 64, 6, 64, 64, 48);
+      innerGlow.addColorStop(0, glowCol + '55');
+      innerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      pg.fillStyle = innerGlow;
+      pg.fillRect(14, 14, 100, 100);
+
+      pg.lineWidth = 6;
+      pg.strokeStyle = '#D3BC8E';
+      roundRectPath(pg, 12, 12, 104, 104, 20);
+      pg.stroke();
+
+      pg.fillStyle = glowCol;
+      pg.strokeStyle = '#111622';
+      pg.lineWidth = 4;
+
+      if (type === BC.POWERUP.STAR) {
+        // Primogem / Wish Star!
+        const pGrad = pg.createRadialGradient(64, 64, 4, 64, 64, 42);
+        pGrad.addColorStop(0, '#FFFFFF');
+        pGrad.addColorStop(0.5, '#9AF2FF');
+        pGrad.addColorStop(1, '#589BFF');
+        pg.fillStyle = pGrad;
+        drawFourPointStar(pg, 64, 64, 40, 15);
+        pg.fill();
+        pg.stroke();
+      } else if (type === BC.POWERUP.HELMET) {
+        // Aegis Shield
+        pg.beginPath();
+        pg.moveTo(64, 26); pg.lineTo(96, 40); pg.lineTo(90, 78); pg.lineTo(64, 102); pg.lineTo(38, 78); pg.lineTo(32, 40);
+        pg.closePath();
+        pg.fill(); pg.stroke();
+        pg.fillStyle = '#FFFFFF';
+        drawFourPointStar(pg, 64, 62, 14, 5); pg.fill();
+      } else if (type === BC.POWERUP.CLOCK) {
+        // Pocket Chrono Watch
+        pg.beginPath(); pg.arc(64, 66, 32, 0, Math.PI * 2); pg.fill(); pg.stroke();
+        pg.fillStyle = '#182032';
+        pg.beginPath(); pg.arc(64, 66, 23, 0, Math.PI * 2); pg.fill();
+        pg.strokeStyle = '#FFF3C4';
+        pg.lineWidth = 5;
+        pg.beginPath(); pg.moveTo(64, 48); pg.lineTo(64, 66); pg.lineTo(78, 74); pg.stroke();
+      } else if (type === BC.POWERUP.SHOVEL) {
+        // Golden Geo Shovel
+        pg.save();
+        pg.translate(64, 64); pg.rotate(Math.PI / 4);
+        pg.fillStyle = '#FFE28A';
+        pg.beginPath(); pg.moveTo(0, -40); pg.lineTo(20, -14); pg.lineTo(14, 0); pg.lineTo(-14, 0); pg.lineTo(-20, -14); pg.closePath();
+        pg.fill(); pg.stroke();
+        pg.fillStyle = '#A66E2E';
+        roundRectPath(pg, -5, 0, 10, 36, 4); pg.fill(); pg.stroke();
+        pg.restore();
+      } else if (type === BC.POWERUP.GRENADE) {
+        // Pyro Elemental Burst Orb
+        pg.beginPath(); pg.arc(64, 70, 28, 0, Math.PI * 2); pg.fill(); pg.stroke();
+        pg.fillStyle = '#FFE47A';
+        drawFourPointStar(pg, 64, 70, 18, 7); pg.fill();
+        pg.fillStyle = '#D3BC8E';
+        roundRectPath(pg, 54, 30, 20, 12, 4); pg.fill(); pg.stroke();
+      } else if (type === BC.POWERUP.TANK) {
+        // Mini 1UP Gold Tank
+        const mini = drawGenshinTankHD('P2', C.P1, 0, 0);
+        pg.drawImage(mini, 20, 20, 88, 88);
+      }
+
+      cache.powerups[type] = pc;
+    }
+
+    // 11. HUD Icons (64x64)
+    const he = createCanvas(64, 64);
+    const heg = he.getContext('2d');
+    heg.fillStyle = '#E89B48';
+    heg.strokeStyle = '#121722';
+    heg.lineWidth = 4;
+    roundRectPath(heg, 12, 16, 40, 34, 8); heg.fill(); heg.stroke();
+    heg.fillStyle = '#FFF2C2';
+    heg.fillRect(28, 8, 8, 16);
+    drawFourPointStar(heg, 32, 34, 8, 3.5); heg.fill();
+    cache.hudEnemy = he;
+
+    const hl = createCanvas(64, 64);
+    const hlg = hl.getContext('2d');
+    hlg.drawImage(drawGenshinTankHD('P0', C.P1, 0, 0), 4, 4, 56, 56);
+    cache.hudLife = hl;
+
+    const fl = createCanvas(128, 128);
+    const flg = fl.getContext('2d');
+    flg.fillStyle = '#D3BC8E';
+    roundRectPath(flg, 20, 16, 10, 96, 4); flg.fill();
+    const flagGrad = flg.createLinearGradient(30, 20, 108, 68);
+    flagGrad.addColorStop(0, '#FF6B5E');
+    flagGrad.addColorStop(1, '#D82C3C');
+    flg.fillStyle = flagGrad;
+    flg.beginPath();
+    flg.moveTo(30, 20); flg.lineTo(110, 44); flg.lineTo(30, 72); flg.closePath();
+    flg.fill();
+    flg.lineWidth = 4; flg.strokeStyle = '#FCE7A2'; flg.stroke();
+    cache.flag = fl;
+
+    return cache;
+  }
+
+  // Build both sprite libraries once
+  const classicSprites = buildClassicSprites();
+  const genshinSprites = buildGenshinSprites();
+
+  BC.SKIN_SPRITES = {
+    classic: classicSprites,
+    genshin: genshinSprites,
+  };
+  BC.SPRITES = BC.SKIN_SPRITES[BC.getSkin()];
+
+  const tankCache = new Map();
+
+  BC.getTankSprite = function (designKey, paletteOrKey, dir, frame) {
+    const skin = BC.getSkin();
+    const palette = resolvePalette(paletteOrKey, skin);
+    const key = skin + '|' + designKey + '|' + palette.join(',') + '|' + dir + '|' + (frame & 1);
+    let cached = tankCache.get(key);
+    if (cached) return cached;
+
+    if (skin === 'classic') {
+      const base = normalizeDesign(TANK_DESIGNS[designKey]);
+      const withTreads = applyTreads(base, frame & 1, '3', '1');
+      cached = renderBitmap(withTreads, palette, dir);
+    } else {
+      cached = drawGenshinTankHD(designKey, palette, dir, frame);
+    }
+
+    tankCache.set(key, cached);
+    return cached;
   };
 
-  // Draw classic NES explosion bursts directly onto canvas
-  BC.drawExplosion = function (ctx, cx, cy, frame, isBig) {
-    const x = Math.round(cx);
-    const y = Math.round(cy);
+  // Draw an 8x8 brick sub-tile with 4-bit quadrant mask (TL=1, TR=2, BL=4, BR=8)
+  BC.drawBrickSubtile = function (ctx, px, py, mask) {
+    if (mask === 0) return;
+    const brickSrc = BC.SPRITES.brickFull;
+    const sw = brickSrc.width / 2;
+    const sh = brickSrc.height / 2;
 
-    if (!isBig) {
-      // Small bullet impact explosion (3 frames: 0..2)
-      const radii = [4, 7, 5];
-      const r = radii[Math.min(2, frame)];
-      ctx.fillStyle = frame === 0 ? '#FCFCFC' : '#FC9838';
-      ctx.fillRect(x - r, y - 2, r * 2, 4);
-      ctx.fillRect(x - 2, y - r, 4, r * 2);
-      ctx.fillStyle = '#D82800';
-      ctx.fillRect(x - Math.floor(r * 0.7), y - Math.floor(r * 0.7), Math.floor(r * 1.4), Math.floor(r * 1.4));
-      if (frame < 2) {
+    if (mask === 0x0f) {
+      ctx.drawImage(brickSrc, px, py, 8, 8);
+      return;
+    }
+    if (mask & 1) ctx.drawImage(brickSrc, 0, 0, sw, sh, px, py, 4, 4);
+    if (mask & 2) ctx.drawImage(brickSrc, sw, 0, sw, sh, px + 4, py, 4, 4);
+    if (mask & 4) ctx.drawImage(brickSrc, 0, sh, sw, sh, px, py + 4, 4, 4);
+    if (mask & 8) ctx.drawImage(brickSrc, sw, sh, sw, sh, px + 4, py + 4, 4, 4);
+  };
+
+  // Skin-aware Explosions (Classic NES pixel burst vs Genshin cel-shaded anime blast)
+  BC.drawExplosion = function (ctx, cx, cy, frame, isBig) {
+    if (BC.getSkin() === 'classic') {
+      const x = Math.round(cx);
+      const y = Math.round(cy);
+
+      if (!isBig) {
+        const radii = [4, 7, 5];
+        const r = radii[Math.min(2, frame)];
+        ctx.fillStyle = frame === 0 ? '#FCFCFC' : '#FC9838';
+        ctx.fillRect(x - r, y - 2, r * 2, 4);
+        ctx.fillRect(x - 2, y - r, 4, r * 2);
+        ctx.fillStyle = '#D82800';
+        ctx.fillRect(x - Math.floor(r * 0.7), y - Math.floor(r * 0.7), Math.floor(r * 1.4), Math.floor(r * 1.4));
+        if (frame < 2) {
+          ctx.fillStyle = '#FCFCFC';
+          ctx.fillRect(x - 2, y - 2, 4, 4);
+        }
+        return;
+      }
+
+      const sizes = [6, 11, 15, 16, 12];
+      const r = sizes[Math.min(4, frame)];
+      if (frame <= 2) {
+        ctx.fillStyle = '#D82800';
+        ctx.fillRect(x - r, y - Math.floor(r * 0.6), r * 2, Math.floor(r * 1.2));
+        ctx.fillRect(x - Math.floor(r * 0.6), y - r, Math.floor(r * 1.2), r * 2);
+        ctx.fillStyle = '#FC9838';
+        const r2 = Math.floor(r * 0.75);
+        ctx.fillRect(x - r2, y - r2, r2 * 2, r2 * 2);
+        ctx.fillStyle = '#FCE4A0';
+        const r3 = Math.floor(r * 0.4);
+        ctx.fillRect(x - r3, y - r3, r3 * 2, r3 * 2);
         ctx.fillStyle = '#FCFCFC';
-        ctx.fillRect(x - 2, y - 2, 4, 4);
+        ctx.fillRect(x - 3, y - 3, 6, 6);
+      } else {
+        ctx.fillStyle = frame === 3 ? '#FC9838' : '#D82800';
+        const d = r - 2;
+        ctx.fillRect(x - d, y - d, 4, 4);
+        ctx.fillRect(x + d - 4, y - d, 4, 4);
+        ctx.fillRect(x - d, y + d - 4, 4, 4);
+        ctx.fillRect(x + d - 4, y + d - 4, 4, 4);
+        ctx.fillRect(x - 2, y - r, 4, 5);
+        ctx.fillRect(x - 2, y + r - 5, 4, 5);
+        ctx.fillRect(x - r, y - 2, 5, 4);
+        ctx.fillRect(x + r - 5, y - 2, 5, 4);
+        if (frame === 3) {
+          ctx.fillStyle = '#FCE4A0';
+          ctx.fillRect(x - 4, y - 4, 8, 8);
+        }
       }
       return;
     }
 
-    // Big tank/base explosion (5 frames: 0..4, up to ~32x32)
-    const sizes = [6, 11, 15, 16, 12];
-    const r = sizes[Math.min(4, frame)];
-    if (frame <= 2) {
-      ctx.fillStyle = '#D82800';
-      ctx.fillRect(x - r, y - Math.floor(r * 0.6), r * 2, Math.floor(r * 1.2));
-      ctx.fillRect(x - Math.floor(r * 0.6), y - r, Math.floor(r * 1.2), r * 2);
-      ctx.fillStyle = '#FC9838';
-      const r2 = Math.floor(r * 0.75);
-      ctx.fillRect(x - r2, y - r2, r2 * 2, r2 * 2);
-      ctx.fillStyle = '#FCE4A0';
-      const r3 = Math.floor(r * 0.4);
-      ctx.fillRect(x - r3, y - r3, r3 * 2, r3 * 2);
-      ctx.fillStyle = '#FCFCFC';
-      ctx.fillRect(x - 3, y - 3, 6, 6);
-    } else {
-      // Shrapnel outer ring dissipating
-      ctx.fillStyle = frame === 3 ? '#FC9838' : '#D82800';
-      const d = r - 2;
-      ctx.fillRect(x - d, y - d, 4, 4);
-      ctx.fillRect(x + d - 4, y - d, 4, 4);
-      ctx.fillRect(x - d, y + d - 4, 4, 4);
-      ctx.fillRect(x + d - 4, y + d - 4, 4, 4);
-      ctx.fillRect(x - 2, y - r, 4, 5);
-      ctx.fillRect(x - 2, y + r - 5, 4, 5);
-      ctx.fillRect(x - r, y - 2, 5, 4);
-      ctx.fillRect(x + r - 5, y - 2, 5, 4);
-      if (frame === 3) {
-        ctx.fillStyle = '#FCE4A0';
-        ctx.fillRect(x - 4, y - 4, 8, 8);
-      }
+    // Genshin Modern 2D Cel-Shaded Elemental Blast
+    if (typeof ctx.beginPath !== 'function') return;
+    ctx.save();
+    if (!isBig) {
+      const r = [4, 7.5, 5.5][Math.min(2, frame)];
+      ctx.fillStyle = 'rgba(255, 130, 65, 0.55)';
+      ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FFE38A';
+      drawFourPointStar(ctx, cx, cy, r, r * 0.42);
+      ctx.fill();
+      ctx.restore();
+      return;
     }
+
+    const radii = [7, 13, 17, 19, 15];
+    const r = radii[Math.min(4, frame)];
+    const alpha = frame >= 3 ? (frame === 3 ? 0.85 : 0.45) : 1.0;
+
+    // Expanding golden shockwave ring
+    ctx.strokeStyle = `rgba(255, 224, 128, ${alpha * 0.9})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.15, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Layered anime pyro cloud
+    ctx.fillStyle = `rgba(218, 56, 50, ${alpha})`;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2); ctx.fill();
+
+    if (frame <= 3) {
+      ctx.fillStyle = `rgba(255, 168, 70, ${alpha})`;
+      ctx.beginPath(); ctx.arc(cx - 1.5, cy - 1.5, r * 0.65, 0, Math.PI * 2); ctx.fill();
+    }
+    if (frame <= 2) {
+      ctx.fillStyle = '#FFFCE6';
+      drawFourPointStar(ctx, cx, cy, r * 0.72, r * 0.25);
+      ctx.fill();
+    }
+    ctx.restore();
   };
 })(window);

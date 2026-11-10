@@ -162,31 +162,39 @@
     }
 
     draw(ctx) {
-      // Gray outer NES border
+      const isGenshin = BC.getSkin() === 'genshin';
+
+      // Outer border
       ctx.fillStyle = BC.COLORS.HUD_GRAY;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
 
-      // Black playfield
-      ctx.fillStyle = BC.COLORS.BLACK;
+      // Playfield ground
+      ctx.fillStyle = isGenshin ? BC.COLORS.FIELD_BG : BC.COLORS.BLACK;
       ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP, BC.FIELD_SIZE, BC.FIELD_SIZE);
 
       // Subtle 16x16 grid guide lines
-      ctx.fillStyle = '#141414';
+      ctx.fillStyle = isGenshin ? '#1F2A3C' : '#141414';
       for (let i = 1; i < BC.GRID_BLOCKS; i++) {
-        ctx.fillRect(BC.BORDER_LEFT + i * 16, BC.BORDER_TOP, 1, BC.FIELD_SIZE);
-        ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP + i * 16, BC.FIELD_SIZE, 1);
+        ctx.fillRect(BC.BORDER_LEFT + i * 16, BC.BORDER_TOP, 0.5, BC.FIELD_SIZE);
+        ctx.fillRect(BC.BORDER_LEFT, BC.BORDER_TOP + i * 16, BC.FIELD_SIZE, 0.5);
+      }
+
+      if (isGenshin) {
+        ctx.strokeStyle = BC.COLORS.GOLD_TRIM;
+        ctx.lineWidth = 0.75;
+        ctx.strokeRect(BC.BORDER_LEFT - 0.5, BC.BORDER_TOP - 0.5, BC.FIELD_SIZE + 1, BC.FIELD_SIZE + 1);
       }
 
       const waterFrame = Math.floor(this.tick / 24) % 2;
       this.mapView.drawUnderLayer(ctx, waterFrame);
       this.mapView.drawOverLayer(ctx);
 
-      // Blinking tank cursor at (cursorX, cursorY) - frame outline stays visible on off-beat
+      // Blinking tank cursor at (cursorX, cursorY)
       const px = BC.BORDER_LEFT + this.cursorX * 16;
       const py = BC.BORDER_TOP + this.cursorY * 16;
       if (Math.floor(this.tick / 12) % 2 === 0) {
-        const tankSprite = BC.getTankSprite('P0', BC.COLORS.P1, BC.DIR.UP, 0);
-        ctx.drawImage(tankSprite, px, py);
+        const tankSprite = BC.getTankSprite('P0', 'P1', BC.DIR.UP, 0);
+        ctx.drawImage(tankSprite, px, py, 16, 16);
       }
       ctx.strokeStyle = Math.floor(this.tick / 12) % 2 === 0 ? '#FCFCFC' : '#FC9838';
       ctx.lineWidth = 1;

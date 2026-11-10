@@ -15,6 +15,10 @@
       </div>
 
       <div class="controls-bar">
+        <select id="skin-select" aria-label="游戏皮肤" title="切换画面皮肤风格">
+          <option value="genshin">皮肤: 提瓦特 2D (原神风)</option>
+          <option value="classic">皮肤: 经典 FC 1985</option>
+        </select>
         <div class="stage-jump">
           <select id="stage-select" aria-label="选择关卡"></select>
           <button id="btn-jump" type="button" title="跳转到所选关卡">跳关</button>
@@ -34,7 +38,7 @@
 
     <section class="screen-bezel">
       <div id="screen-wrap" class="screen-wrap">
-        <canvas id="game-canvas" width="256" height="240"></canvas>
+        <canvas id="game-canvas" width="1024" height="960"></canvas>
         <div class="crt-overlay" aria-hidden="true"></div>
       </div>
     </section>
@@ -89,6 +93,7 @@
       const game = BC.init();
       if (!game) return;
 
+      const skinSelect = document.getElementById('skin-select');
       const stageSelect = document.getElementById('stage-select');
       const speedSelect = document.getElementById('speed-select');
       const btnJump = document.getElementById('btn-jump');
@@ -118,7 +123,20 @@
         if (prev) stageSelect.value = prev;
       }
 
+      function syncSkinUI() {
+        const s = BC.getSkin();
+        skinSelect.value = s;
+        document.body.setAttribute('data-skin', s);
+      }
+
+      syncSkinUI();
       populateStages();
+
+      skinSelect.addEventListener('change', () => {
+        game.setSkin(skinSelect.value);
+        syncSkinUI();
+        skinSelect.blur();
+      });
 
       game.onStateChange = function (info) {
         populateStages();

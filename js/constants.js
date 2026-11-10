@@ -128,49 +128,127 @@
   // Bonus tank indices (0-indexed out of 20 enemies per stage: 4th, 11th, 18th)
   BC.BONUS_ENEMY_INDICES = new Set([3, 10, 17]);
 
-  // NES Classic Colors
-  BC.COLORS = {
-    BLACK: '#000000',
-    HUD_GRAY: '#636363',
-    HUD_DARK: '#3A3A3A',
-    WHITE: '#FCFCFC',
-    TEXT_RED: '#D82800',
-    TEXT_ORANGE: '#FC9838',
-    TEXT_YELLOW: '#FCE4A0',
+  // HD Canvas render scale (logical 256x240 -> 1024x960 HD canvas; classic uses integer 4x nearest-neighbor)
+  BC.RENDER_SCALE = 4;
 
-    // Brick
-    BRICK_DARK: '#7C2C00',
-    BRICK_MID: '#B84000',
-    BRICK_LIGHT: '#E07020',
-    BRICK_MORTAR: '#636363',
+  const SKIN_STORAGE_KEY = 'battle_city_skin_v1';
 
-    // Steel
-    STEEL_DARK: '#636363',
-    STEEL_MID: '#ADADAD',
-    STEEL_LIGHT: '#FCFCFC',
+  BC.THEMES = {
+    classic: {
+      BLACK: '#000000',
+      FIELD_BG: '#000000',
+      FIELD_GRID: '#000000',
+      HUD_GRAY: '#636363',
+      HUD_DARK: '#3A3A3A',
+      GOLD_TRIM: '#000000',
+      GOLD_BRIGHT: '#FCFCFC',
+      WHITE: '#FCFCFC',
+      TEXT_RED: '#D82800',
+      TEXT_ORANGE: '#FC9838',
+      TEXT_YELLOW: '#FCE4A0',
 
-    // Forest
-    FOREST_DARK: '#004800',
-    FOREST_MID: '#209800',
-    FOREST_LIGHT: '#80D010',
+      BRICK_DARK: '#7C2C00',
+      BRICK_MID: '#B84000',
+      BRICK_LIGHT: '#E07020',
+      BRICK_MORTAR: '#636363',
 
-    // Water
-    WATER_DARK: '#0038A8',
-    WATER_MID: '#1870E8',
-    WATER_LIGHT: '#78C8FC',
+      STEEL_DARK: '#636363',
+      STEEL_MID: '#ADADAD',
+      STEEL_LIGHT: '#FCFCFC',
+      STEEL_CORE: '#FCFCFC',
 
-    // Ice
-    ICE_DARK: '#787878',
-    ICE_MID: '#BCBCBC',
-    ICE_LIGHT: '#ECECEC',
+      FOREST_DARK: '#004800',
+      FOREST_MID: '#209800',
+      FOREST_LIGHT: '#80D010',
 
-    // Tank Palettes [dark, mid, light]
-    P1: ['#945800', '#E49818', '#F8E470'],
-    P2: ['#005C00', '#24A820', '#94F878'],
-    ENEMY_BASIC: ['#5C5C5C', '#A8A8A8', '#F4F4F4'],
-    ENEMY_RED: ['#880000', '#E02820', '#FCA098'],
-    ENEMY_GREEN: ['#005000', '#189818', '#78E868'],
-    ENEMY_GOLD: ['#885000', '#D89010', '#F8E068'],
+      WATER_DARK: '#0038A8',
+      WATER_MID: '#1870E8',
+      WATER_LIGHT: '#78C8FC',
+
+      ICE_DARK: '#787878',
+      ICE_MID: '#BCBCBC',
+      ICE_LIGHT: '#ECECEC',
+
+      P1: ['#945800', '#E49818', '#F8E470'],
+      P2: ['#005C00', '#24A820', '#94F878'],
+      ENEMY_BASIC: ['#5C5C5C', '#A8A8A8', '#F4F4F4'],
+      ENEMY_RED: ['#880000', '#E02820', '#FCA098'],
+      ENEMY_GREEN: ['#005000', '#189818', '#78E868'],
+      ENEMY_GOLD: ['#885000', '#D89010', '#F8E068'],
+      ENEMY_ELECTRO: ['#005000', '#189818', '#78E868'],
+    },
+    genshin: {
+      BLACK: '#121824',
+      FIELD_BG: '#161E2B',
+      FIELD_GRID: '#1E2838',
+      HUD_GRAY: '#1E2534',
+      HUD_DARK: '#121722',
+      GOLD_TRIM: '#D3BC8E',
+      GOLD_BRIGHT: '#F8E3A3',
+      WHITE: '#F7F3E9',
+      TEXT_RED: '#FF6B5E',
+      TEXT_ORANGE: '#F3B86A',
+      TEXT_YELLOW: '#FCE7A2',
+
+      BRICK_DARK: '#7D3B28',
+      BRICK_MID: '#BF623E',
+      BRICK_LIGHT: '#E79162',
+      BRICK_MORTAR: '#4A2B26',
+
+      STEEL_DARK: '#3A465C',
+      STEEL_MID: '#637696',
+      STEEL_LIGHT: '#D3BC8E',
+      STEEL_CORE: '#7AE7F0',
+
+      FOREST_DARK: '#1C5E3B',
+      FOREST_MID: '#329B56',
+      FOREST_LIGHT: '#8CE26F',
+
+      WATER_DARK: '#1B5EA6',
+      WATER_MID: '#33A6E3',
+      WATER_LIGHT: '#A8F0FF',
+
+      ICE_DARK: '#5C98BA',
+      ICE_MID: '#A4DCF4',
+      ICE_LIGHT: '#EAFBFF',
+
+      P1: ['#9B6824', '#E5B24C', '#FFF0B8', '#5EE7DF'],
+      P2: ['#1D6B4A', '#3BC485', '#B9FFE0', '#9BF6FF'],
+      ENEMY_BASIC: ['#495266', '#8391AC', '#CFD9EB', '#FF6B6B'],
+      ENEMY_RED: ['#8C2032', '#E04456', '#FFB3BA', '#FFF3B0'],
+      ENEMY_GREEN: ['#1C6B4B', '#37B87E', '#A8F5C8', '#7AF5D8'],
+      ENEMY_GOLD: ['#9A6118', '#DF992C', '#FFE38A', '#FFF4BD'],
+      ENEMY_ELECTRO: ['#4B3278', '#8E63CC', '#D7C2FF', '#F3A8FF'],
+    },
+  };
+
+  function loadInitialSkin() {
+    try {
+      const saved = global.localStorage && global.localStorage.getItem(SKIN_STORAGE_KEY);
+      if (saved === 'classic' || saved === 'genshin') return saved;
+    } catch (_) {}
+    return 'genshin';
+  }
+
+  BC.SKIN = loadInitialSkin();
+  BC.COLORS = BC.THEMES[BC.SKIN];
+
+  BC.getSkin = function () {
+    return BC.SKIN;
+  };
+
+  BC.setSkin = function (skin) {
+    if (skin !== 'classic' && skin !== 'genshin') return;
+    BC.SKIN = skin;
+    BC.COLORS = BC.THEMES[skin];
+    if (BC.SKIN_SPRITES && BC.SKIN_SPRITES[skin]) {
+      BC.SPRITES = BC.SKIN_SPRITES[skin];
+    }
+    try {
+      if (global.localStorage) {
+        global.localStorage.setItem(SKIN_STORAGE_KEY, skin);
+      }
+    } catch (_) {}
   };
 
   // Authentic 1985 Famicom ROM Enemy Spawn Sequences ($E4EC EntityTypeTable + $E578 StageEnemyCountTable)

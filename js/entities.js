@@ -230,11 +230,11 @@
           if (t === BC.TILE.BRICK) {
             BC.drawBrickSubtile(ctx, px, py, this.brickMasks[ty][tx]);
           } else if (t === BC.TILE.STEEL) {
-            ctx.drawImage(BC.SPRITES.steel, px, py);
+            ctx.drawImage(BC.SPRITES.steel, px, py, S, S);
           } else if (t === BC.TILE.WATER) {
-            ctx.drawImage(BC.SPRITES.water[waterFrame & 1], px, py);
+            ctx.drawImage(BC.SPRITES.water[waterFrame & 1], px, py, S, S);
           } else if (t === BC.TILE.ICE) {
-            ctx.drawImage(BC.SPRITES.ice, px, py);
+            ctx.drawImage(BC.SPRITES.ice, px, py, S, S);
           }
         }
       }
@@ -245,7 +245,9 @@
       ctx.drawImage(
         this.eagleAlive ? BC.SPRITES.eagleAlive : BC.SPRITES.eagleDead,
         ex,
-        ey
+        ey,
+        16,
+        16
       );
     }
 
@@ -253,13 +255,22 @@
       const S = BC.SUBTILE_SIZE;
       const ox = BC.BORDER_LEFT;
       const oy = BC.BORDER_TOP;
+      const isGenshin = BC.getSkin() === 'genshin';
+      if (isGenshin) {
+        ctx.save();
+        ctx.globalAlpha = 0.88;
+      }
 
       for (let ty = 0; ty < BC.GRID_SUBTILES; ty++) {
         for (let tx = 0; tx < BC.GRID_SUBTILES; tx++) {
           if (this.tiles[ty][tx] === BC.TILE.FOREST) {
-            ctx.drawImage(BC.SPRITES.forest, ox + tx * S, oy + ty * S);
+            ctx.drawImage(BC.SPRITES.forest, ox + tx * S, oy + ty * S, S, S);
           }
         }
+      }
+
+      if (isGenshin) {
+        ctx.restore();
       }
     }
   }
@@ -448,41 +459,41 @@
       }
 
       let designKey;
-      let palette;
+      let paletteKey;
 
       if (this.isPlayer) {
         designKey = 'P' + this.tier;
-        palette = this.playerIndex === 0 ? BC.COLORS.P1 : BC.COLORS.P2;
+        paletteKey = this.playerIndex === 0 ? 'P1' : 'P2';
       } else {
         designKey = 'E' + this.enemyType;
         if (this.isBonus && Math.floor(globalFrame / 8) % 2 === 0) {
-          palette = BC.COLORS.ENEMY_RED;
+          paletteKey = 'ENEMY_RED';
         } else if (this.enemyType === BC.ENEMY_TYPE.ARMOR) {
           if (this.hp === 4) {
-            palette = (Math.floor(globalFrame / 4) % 2 === 0)
-              ? BC.COLORS.ENEMY_GREEN
-              : BC.COLORS.ENEMY_GOLD;
+            paletteKey = (Math.floor(globalFrame / 4) % 2 === 0)
+              ? (BC.getSkin() === 'genshin' ? 'ENEMY_ELECTRO' : 'ENEMY_GREEN')
+              : 'ENEMY_GOLD';
           } else if (this.hp === 3) {
-            palette = BC.COLORS.ENEMY_GOLD;
+            paletteKey = 'ENEMY_GOLD';
           } else if (this.hp === 2) {
-            palette = BC.COLORS.ENEMY_GREEN;
+            paletteKey = 'ENEMY_GREEN';
           } else {
-            palette = BC.COLORS.ENEMY_BASIC;
+            paletteKey = 'ENEMY_BASIC';
           }
         } else {
-          palette = BC.COLORS.ENEMY_BASIC;
+          paletteKey = 'ENEMY_BASIC';
         }
       }
 
-      const sprite = BC.getTankSprite(designKey, palette, this.dir, this.treadFrame);
+      const sprite = BC.getTankSprite(designKey, paletteKey, this.dir, this.treadFrame);
       const px = BC.BORDER_LEFT + Math.round(this.x);
       const py = BC.BORDER_TOP + Math.round(this.y);
-      ctx.drawImage(sprite, px, py);
+      ctx.drawImage(sprite, px, py, 16, 16);
 
       // Shield bubble animation
       if (this.shieldTimer > 0) {
         const sf = Math.floor(globalFrame / 3) % 2;
-        ctx.drawImage(BC.SPRITES.shield[sf], px, py);
+        ctx.drawImage(BC.SPRITES.shield[sf], px, py, 16, 16);
       }
     }
   }
@@ -512,7 +523,9 @@
       ctx.drawImage(
         sprite,
         BC.BORDER_LEFT + Math.round(this.x),
-        BC.BORDER_TOP + Math.round(this.y)
+        BC.BORDER_TOP + Math.round(this.y),
+        4,
+        4
       );
     }
   }
@@ -538,12 +551,11 @@
 
     draw(ctx, globalFrame) {
       if (!this.alive) return;
-      // Classic NES blink rate (faster in final 3 seconds)
       const period = this.timer < 180 ? 4 : 10;
       if (Math.floor(globalFrame / period) % 2 === 1) return;
       const sprite = BC.SPRITES.powerups[this.type];
       if (sprite) {
-        ctx.drawImage(sprite, BC.BORDER_LEFT + this.x, BC.BORDER_TOP + this.y);
+        ctx.drawImage(sprite, BC.BORDER_LEFT + this.x, BC.BORDER_TOP + this.y, 16, 16);
       }
     }
   }
@@ -577,7 +589,7 @@
       if (!this.alive) return;
       const frame = Math.floor((BC.FRAMES.SPAWN_ANIM - this.timer) / 4) % 4;
       const sprite = BC.SPRITES.spawnStars[frame];
-      ctx.drawImage(sprite, BC.BORDER_LEFT + this.x, BC.BORDER_TOP + this.y);
+      ctx.drawImage(sprite, BC.BORDER_LEFT + this.x, BC.BORDER_TOP + this.y, 16, 16);
     }
   }
 

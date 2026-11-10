@@ -3,7 +3,9 @@
 
   const BC = (global.BattleCity = global.BattleCity || {});
 
-  // Classic 8x8 Arcade / NES Bitmap Font (each row is 8 bits, MSB on left)
+  // =========================================================================
+  // 1. CLASSIC NES 8x8 BITMAP FONT & BRICK TITLES
+  // =========================================================================
   const GLYPHS = {
     ' ': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
     '0': [0x3C, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x3C, 0x00],
@@ -53,11 +55,10 @@
     ')': [0x30, 0x18, 0x0C, 0x0C, 0x0C, 0x18, 0x30, 0x00],
     '<': [0x0C, 0x18, 0x30, 0x60, 0x30, 0x18, 0x0C, 0x00],
     '>': [0x30, 0x18, 0x0C, 0x06, 0x0C, 0x18, 0x30, 0x00],
-    '@': [0x3C, 0x42, 0x5A, 0x56, 0x5C, 0x40, 0x3C, 0x00], // ©-like badge
+    '@': [0x3C, 0x42, 0x5A, 0x56, 0x5C, 0x40, 0x3C, 0x00],
     '_': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7E, 0x00],
   };
 
-  // Pre-rendered color glyph cache
   const glyphCache = new Map();
 
   function getGlyphCanvas(ch, color) {
@@ -83,143 +84,21 @@
     return c;
   }
 
-  BC.drawText = function (ctx, text, x, y, color = '#FCFCFC', align = 'left') {
-    const str = String(text).toUpperCase();
-    let startX = Math.round(x);
-    if (align === 'center') {
-      startX = Math.round(x - (str.length * 8) / 2);
-    } else if (align === 'right') {
-      startX = Math.round(x - str.length * 8);
-    }
-    const drawY = Math.round(y);
-    for (let i = 0; i < str.length; i++) {
-      const g = getGlyphCanvas(str[i], color);
-      ctx.drawImage(g, startX + i * 8, drawY);
-    }
-  };
-
-  // Giant brick-patterned text renderer for "BATTLE CITY" title & "GAME OVER" banner
   const brickLetterCache = new Map();
-
-  // Compact 5x7 pixel font for crisp monumental brick lettering
   const BIG_LETTERS = {
-    B: [
-      '11110',
-      '10001',
-      '10001',
-      '11110',
-      '10001',
-      '10001',
-      '11110',
-    ],
-    A: [
-      '01110',
-      '10001',
-      '10001',
-      '11111',
-      '10001',
-      '10001',
-      '10001',
-    ],
-    T: [
-      '11111',
-      '00100',
-      '00100',
-      '00100',
-      '00100',
-      '00100',
-      '00100',
-    ],
-    L: [
-      '10000',
-      '10000',
-      '10000',
-      '10000',
-      '10000',
-      '10000',
-      '11111',
-    ],
-    E: [
-      '11111',
-      '10000',
-      '10000',
-      '11110',
-      '10000',
-      '10000',
-      '11111',
-    ],
-    C: [
-      '01111',
-      '10000',
-      '10000',
-      '10000',
-      '10000',
-      '10000',
-      '01111',
-    ],
-    I: [
-      '11111',
-      '00100',
-      '00100',
-      '00100',
-      '00100',
-      '00100',
-      '11111',
-    ],
-    Y: [
-      '10001',
-      '10001',
-      '01010',
-      '00100',
-      '00100',
-      '00100',
-      '00100',
-    ],
-    G: [
-      '01111',
-      '10000',
-      '10000',
-      '10111',
-      '10001',
-      '10001',
-      '01110',
-    ],
-    M: [
-      '10001',
-      '11011',
-      '10101',
-      '10101',
-      '10001',
-      '10001',
-      '10001',
-    ],
-    O: [
-      '01110',
-      '10001',
-      '10001',
-      '10001',
-      '10001',
-      '10001',
-      '01110',
-    ],
-    V: [
-      '10001',
-      '10001',
-      '10001',
-      '10001',
-      '10001',
-      '01010',
-      '00100',
-    ],
-    R: [
-      '11110',
-      '10001',
-      '10001',
-      '11110',
-      '10100',
-      '10010',
-      '10001',
-    ],
+    B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+    A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+    T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+    L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+    E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+    C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+    I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+    Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+    G: ['01111', '10000', '10000', '10111', '10001', '10001', '01110'],
+    M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+    O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+    V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+    R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
   };
 
   function getBrickWordCanvas(word, scale, palette) {
@@ -249,8 +128,7 @@
           if (pattern[py][px] === '1') {
             const bx = ox + px * scale;
             const by = py * scale;
-            // Draw mini staggered NES brick pattern inside each block
-            g.fillStyle = palette[0]; // mortar / shadow
+            g.fillStyle = palette[0];
             g.fillRect(bx, by, scale, scale);
             for (let sy = 0; sy < scale; sy += 2) {
               const offset = ((sy >> 1) & 1) === 0 ? 0 : 2;
@@ -276,11 +154,138 @@
     return c;
   }
 
+  // =========================================================================
+  // 2. GENSHIN-INSPIRED HD 2D TYPOGRAPHY & TITLES
+  // =========================================================================
+  function remapGenshinColor(color) {
+    if (!color) return '#F7F3E9';
+    const up = color.toUpperCase();
+    if (up === '#000000') return '#D3BC8E';
+    if (up === '#3A3A3A') return '#9DB2CE';
+    if (up === '#FCFCFC') return '#F7F3E9';
+    if (up === '#D82800') return '#FF6B5E';
+    if (up === '#FC9838') return '#F5C469';
+    if (up === '#FCE4A0') return '#FFF0B8';
+    return color;
+  }
+
+  // =========================================================================
+  // UNIFIED SKIN-AWARE EXPORTS
+  // =========================================================================
+  BC.drawText = function (ctx, text, x, y, color = '#FCFCFC', align = 'left', sizeLogical = 7.5) {
+    if (BC.getSkin() === 'classic') {
+      const str = String(text).toUpperCase();
+      let startX = Math.round(x);
+      if (align === 'center') startX = Math.round(x - (str.length * 8) / 2);
+      else if (align === 'right') startX = Math.round(x - str.length * 8);
+      const drawY = Math.round(y);
+      for (let i = 0; i < str.length; i++) {
+        const g = getGlyphCanvas(str[i], color);
+        ctx.drawImage(g, startX + i * 8, drawY, 8, 8);
+      }
+      return;
+    }
+
+    if (!ctx.fillText) return;
+    const S = BC.RENDER_SCALE || 4;
+    const str = String(text);
+    const fillCol = remapGenshinColor(color);
+
+    ctx.save();
+    ctx.scale(1 / S, 1 / S);
+
+    const pxSize = Math.round(sizeLogical * S);
+    ctx.font = `700 ${pxSize}px "Georgia", "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
+
+    const drawX = Math.round(x * S);
+    const drawY = Math.round(y * S);
+
+    ctx.lineWidth = Math.max(2, S * 0.85);
+    ctx.strokeStyle = 'rgba(10, 14, 24, 0.9)';
+    ctx.strokeText(str, drawX, drawY);
+
+    ctx.fillStyle = fillCol;
+    ctx.fillText(str, drawX, drawY);
+    ctx.restore();
+  };
+
   BC.drawBrickWord = function (ctx, word, centerX, y, scale = 5, isRed = false) {
-    const palette = isRed
-      ? ['#580000', '#A81800', '#E44010']
-      : ['#682000', '#B03800', '#E86818'];
-    const c = getBrickWordCanvas(word.toUpperCase(), scale, palette);
-    ctx.drawImage(c, Math.round(centerX - c.width / 2), Math.round(y));
+    if (BC.getSkin() === 'classic') {
+      const palette = isRed
+        ? ['#580000', '#A81800', '#E44010']
+        : ['#682000', '#B03800', '#E86818'];
+      const c = getBrickWordCanvas(word.toUpperCase(), scale, palette);
+      ctx.drawImage(c, Math.round(centerX - c.width / 2), Math.round(y), c.width, c.height);
+      return;
+    }
+
+    if (!ctx.fillText || !ctx.createLinearGradient) return;
+    const S = BC.RENDER_SCALE || 4;
+    const str = String(word).toUpperCase();
+
+    ctx.save();
+    ctx.scale(1 / S, 1 / S);
+
+    const cx = Math.round(centerX * S);
+    const fontPx = Math.round(scale * 6.8 * S);
+    const topY = Math.round(y * S);
+
+    ctx.font = `900 ${fontPx}px "Cinzel", "Georgia", "Times New Roman", serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    ctx.save();
+    ctx.shadowColor = isRed ? 'rgba(255, 78, 80, 0.65)' : 'rgba(245, 200, 105, 0.55)';
+    ctx.shadowBlur = 18;
+    ctx.lineWidth = Math.round(S * 2.2);
+    ctx.strokeStyle = isRed ? '#380D14' : '#1E1810';
+    ctx.strokeText(str, cx, topY);
+    ctx.restore();
+
+    const grad = ctx.createLinearGradient(0, topY, 0, topY + fontPx);
+    if (isRed) {
+      grad.addColorStop(0.0, '#FFD4CC');
+      grad.addColorStop(0.42, '#FF685C');
+      grad.addColorStop(0.75, '#D12E3C');
+      grad.addColorStop(1.0, '#781523');
+    } else {
+      grad.addColorStop(0.0, '#FFFDF2');
+      grad.addColorStop(0.38, '#F6DA92');
+      grad.addColorStop(0.72, '#CFA04E');
+      grad.addColorStop(1.0, '#855A1D');
+    }
+
+    ctx.fillStyle = grad;
+    ctx.fillText(str, cx, topY);
+
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = isRed ? 'rgba(255,215,210,0.45)' : 'rgba(255,252,235,0.55)';
+    ctx.strokeText(str, cx, topY);
+
+    if (ctx.beginPath) {
+      const lineW = Math.min(ctx.measureText(str).width * 0.72, 160 * S);
+      const lineY = topY + fontPx + Math.round(S * 1.2);
+      ctx.strokeStyle = isRed ? 'rgba(255, 110, 100, 0.55)' : 'rgba(211, 188, 142, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - lineW / 2, lineY);
+      ctx.lineTo(cx - 10, lineY);
+      ctx.moveTo(cx + 10, lineY);
+      ctx.lineTo(cx + lineW / 2, lineY);
+      ctx.stroke();
+
+      ctx.fillStyle = isRed ? '#FF948A' : '#FCE7A2';
+      ctx.beginPath();
+      ctx.moveTo(cx, lineY - 6);
+      ctx.lineTo(cx + 6, lineY);
+      ctx.lineTo(cx, lineY + 6);
+      ctx.lineTo(cx - 6, lineY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
   };
 })(window);
