@@ -95,19 +95,19 @@
       const cx = bullet.x + bullet.w / 2;
       const cy = bullet.y + bullet.h / 2;
 
-      // Brick detection uses a 12px lateral footprint (stays strictly inside a 16px tank corridor,
-      // while hitting any 4x4 micro-brick stub inside that corridor).
+      // Brick detection uses a 10px lateral footprint ([cx-5, cx+4]), matching the
+      // original NES ROM 4-probe span so shots stay cleanly inside a 2-subtile corridor.
       // Steel and Eagle use exact 4x4 bullet footprint.
       let bx = bullet.x;
       let by = bullet.y;
       let bw = bullet.w;
       let bh = bullet.h;
       if (bullet.dir === BC.DIR.UP || bullet.dir === BC.DIR.DOWN) {
-        bx = cx - 6;
-        bw = 12;
+        bx = cx - 5;
+        bw = 10;
       } else {
-        by = cy - 6;
-        bh = 12;
+        by = cy - 5;
+        bh = 10;
       }
 
       // Check Eagle first with exact bullet rect

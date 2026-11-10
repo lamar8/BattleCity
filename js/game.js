@@ -836,7 +836,9 @@
               BC.Audio.playExplodePlayer();
               this._triggerGameOver();
             } else {
-              this.explosions.push(new BC.Explosion(b.x + b.w / 2, b.y + b.h / 2, false));
+              const ex = Math.max(4, Math.min(BC.FIELD_SIZE - 4, b.x + b.w / 2 + vec.x * 2));
+              const ey = Math.max(4, Math.min(BC.FIELD_SIZE - 4, b.y + b.h / 2 + vec.y * 2));
+              this.explosions.push(new BC.Explosion(ex, ey, false));
               if (b.isPlayerBullet) {
                 if (hitTerrain.type === 'steel_clang') BC.Audio.playHitSteel();
                 else BC.Audio.playHitBrick();
@@ -1485,16 +1487,25 @@
     const BASE_STEP_MS = 1000 / 60;
     let lastTime = performance.now();
     let accumulator = 0;
+    let audioAccumulator = 0;
 
     function frame(now) {
       const stepMs = BASE_STEP_MS / (game.speedScale || 1.0);
       const delta = Math.min(100, now - lastTime);
       lastTime = now;
       accumulator += delta;
+      audioAccumulator += delta;
 
       while (accumulator >= stepMs) {
         game.update();
         accumulator -= stepMs;
+      }
+
+      while (audioAccumulator >= BASE_STEP_MS) {
+        if (typeof BC.Audio.tick === 'function') {
+          BC.Audio.tick();
+        }
+        audioAccumulator -= BASE_STEP_MS;
       }
 
       game.render();

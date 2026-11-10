@@ -312,6 +312,66 @@
     const bulletUp = ['.33.', '3223', '3223', '.11.'];
     cache.bullets = [0, 1, 2, 3].map((d) => renderBitmap(bulletUp, ['#808080', '#D8D8D8', '#FCFCFC'], d));
 
+    // Authentic 1985 FC 16x16 3-frame bullet impact starburst (EXPL_SMALL -> EXPL_MEDIUM -> EXPL_LARGE)
+    // Colors: '1'=#D82800 (crimson), '2'=#FC9838 (orange), '3'=#FCFCFC (white hot core)
+    const bulletExpFrames = [
+      [
+        '................',
+        '................',
+        '................',
+        '......2..2......',
+        '....2..33..2....',
+        '.....233332.....',
+        '...2333333332...',
+        '....33333333....',
+        '....33333333....',
+        '...2333333332...',
+        '.....233332.....',
+        '....2..33..2....',
+        '......2..2......',
+        '................',
+        '................',
+        '................',
+      ],
+      [
+        '.......11.......',
+        '....1..22..1....',
+        '..1..223322..1..',
+        '...1223333221...',
+        '.1.2333223332.1.',
+        '..233221122332..',
+        '.12321.33.12321.',
+        '12332.3333.23321',
+        '12332.3333.23321',
+        '.12321.33.12321.',
+        '..233221122332..',
+        '.1.2333223332.1.',
+        '...1223333221...',
+        '..1..223322..1..',
+        '....1..22..1....',
+        '.......11.......',
+      ],
+      [
+        '..1....11....1..',
+        '....1.2..2.1....',
+        '.1..22....22..1.',
+        '..12..1..1..21..',
+        '1.2..1....1..2.1',
+        '..2.1......1.2..',
+        '12............21',
+        '12............21',
+        '12............21',
+        '12............21',
+        '..2.1......1.2..',
+        '1.2..1....1..2.1',
+        '..12..1..1..21..',
+        '.1..22....22..1.',
+        '....1.2..2.1....',
+        '..1....11....1..',
+      ],
+    ];
+    cache.bulletExp = bulletExpFrames.map((f) => renderBitmap(f, ['#D82800', '#FC9838', '#FCFCFC'], 0));
+
     const spawnFrames = [
       [
         '................','................','................','................',
@@ -1640,16 +1700,9 @@
       const y = Math.round(cy);
 
       if (!isBig) {
-        const radii = [4, 7, 5];
-        const r = radii[Math.min(2, frame)];
-        ctx.fillStyle = frame === 0 ? '#FCFCFC' : '#FC9838';
-        ctx.fillRect(x - r, y - 2, r * 2, 4);
-        ctx.fillRect(x - 2, y - r, 4, r * 2);
-        ctx.fillStyle = '#D82800';
-        ctx.fillRect(x - Math.floor(r * 0.7), y - Math.floor(r * 0.7), Math.floor(r * 1.4), Math.floor(r * 1.4));
-        if (frame < 2) {
-          ctx.fillStyle = '#FCFCFC';
-          ctx.fillRect(x - 2, y - 2, 4, 4);
+        const expSprite = BC.SKIN_SPRITES.classic.bulletExp[Math.min(2, frame)];
+        if (expSprite) {
+          ctx.drawImage(expSprite, x - 8, y - 8, 16, 16);
         }
         return;
       }
@@ -1692,13 +1745,21 @@
 
     if (skin === 'cyberpunk') {
       if (!isBig) {
-        const r = [4.5, 8, 5.5][Math.min(2, frame)];
-        ctx.strokeStyle = '#00F0FF';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath(); ctx.arc(cx, cy, r + 1.5, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FF2A85';
-        drawFourPointStar(ctx, cx, cy, r, r * 0.35);
-        ctx.fill();
+        const r = [5.5, 9, 10][Math.min(2, frame)];
+        const alpha = frame === 2 ? 0.55 : 1.0;
+        ctx.strokeStyle = `rgba(0, 240, 255, ${alpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        if (frame < 2) {
+          ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FF2A85';
+          drawFourPointStar(ctx, cx, cy, r * 0.9, r * 0.35);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = '#FCEE0A';
+          for (const [dx, dy] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) {
+            ctx.fillRect(cx + dx - 0.8, cy + dy - 0.8, 1.6, 1.6);
+          }
+        }
         ctx.restore();
         return;
       }
@@ -1730,12 +1791,23 @@
 
     // Genshin Modern 2D Cel-Shaded Elemental Blast
     if (!isBig) {
-      const r = [4, 7.5, 5.5][Math.min(2, frame)];
-      ctx.fillStyle = 'rgba(255, 130, 65, 0.55)';
-      ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FFE38A';
-      drawFourPointStar(ctx, cx, cy, r, r * 0.42);
-      ctx.fill();
+      const r = [5.5, 9, 10][Math.min(2, frame)];
+      const alpha = frame === 2 ? 0.5 : 1.0;
+      ctx.strokeStyle = `rgba(255, 224, 128, ${alpha})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      if (frame < 2) {
+        ctx.fillStyle = `rgba(255, 110, 50, ${0.75 * alpha})`;
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FFE38A';
+        drawFourPointStar(ctx, cx, cy, r * 0.88, r * 0.36);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#FFE38A';
+        for (const [dx, dy] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) {
+          ctx.beginPath(); ctx.arc(cx + dx, cy + dy, 1.1, 0, Math.PI * 2); ctx.fill();
+        }
+      }
       ctx.restore();
       return;
     }
