@@ -25,6 +25,7 @@
       this.state = STATE.TITLE;
       this.globalFrame = 0;
       this.speedScale = 1.0;
+      this.starRate = this._loadStarRate();
 
       // Persistent High Score (NES default starts at 20000)
       this.hiScore = this._loadHiScore();
@@ -81,6 +82,14 @@
 
       this._bindInputs();
       this._notifyUI();
+    }
+
+    _loadStarRate() {
+      try {
+        const v = parseFloat(global.localStorage.getItem('battle_city_star_rate_v1'));
+        if (Number.isFinite(v) && v >= 0 && v <= 1) return v;
+      } catch (_) {}
+      return 0.25;
     }
 
     _loadHiScore() {
@@ -204,6 +213,23 @@
 
     setSpeedScale(scale) {
       this.speedScale = Math.max(0.5, Math.min(1.5, Number(scale) || 1.0));
+    }
+
+    setStarRate(rate) {
+      const r = Math.max(0, Math.min(1, Number(rate)));
+      this.starRate = Number.isFinite(r) ? r : 0.25;
+      try {
+        if (global.localStorage) {
+          global.localStorage.setItem('battle_city_star_rate_v1', String(this.starRate));
+        }
+      } catch (_) {}
+    }
+
+    setBasicBulletSpeed(speed) {
+      BC.setBasicBulletSpeed(speed);
+      for (const p of this.players) {
+        if (p.tank) p.tank.applyTier(p.tier);
+      }
     }
 
     setSkin(skin) {
@@ -927,16 +953,20 @@
     }
 
     _spawnPowerUp() {
-      // Weighted authentic pool (1UP Tank slightly rarer)
-      const pool = [
-        BC.POWERUP.HELMET, BC.POWERUP.HELMET,
-        BC.POWERUP.CLOCK, BC.POWERUP.CLOCK,
-        BC.POWERUP.SHOVEL, BC.POWERUP.SHOVEL,
-        BC.POWERUP.STAR, BC.POWERUP.STAR, BC.POWERUP.STAR,
-        BC.POWERUP.GRENADE, BC.POWERUP.GRENADE,
-        BC.POWERUP.TANK,
-      ];
-      const type = pool[Math.floor(Math.random() * pool.length)];
+      let type;
+      if (Math.random() < this.starRate) {
+        type = BC.POWERUP.STAR;
+      } else {
+        // Weighted remaining items (1UP Tank slightly rarer)
+        const others = [
+          BC.POWERUP.HELMET, BC.POWERUP.HELMET,
+          BC.POWERUP.CLOCK, BC.POWERUP.CLOCK,
+          BC.POWERUP.SHOVEL, BC.POWERUP.SHOVEL,
+          BC.POWERUP.GRENADE, BC.POWERUP.GRENADE,
+          BC.POWERUP.TANK,
+        ];
+        type = others[Math.floor(Math.random() * others.length)];
+      }
 
       // Choose random 8px-aligned coordinate inside playfield avoiding Eagle box
       let px = 96;

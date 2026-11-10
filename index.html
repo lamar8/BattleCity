@@ -29,6 +29,20 @@
           <option value="1" selected>速度: 原版</option>
           <option value="1.2">速度: 1.2x</option>
         </select>
+        <select id="star-rate-select" aria-label="五角星概率" title="调节道具刷新出五角星的概率">
+          <option value="0.1">星率: 10%</option>
+          <option value="0.25">星率: 25%(原版)</option>
+          <option value="0.5">星率: 50%</option>
+          <option value="0.75">星率: 75%</option>
+          <option value="1">星率: 100%</option>
+        </select>
+        <select id="bullet-speed-select" aria-label="基础弹速" title="调节0星基础炮弹速度（升级后同步提升）">
+          <option value="1.5">基础弹速: 1.5</option>
+          <option value="2">基础弹速: 2.0(原版)</option>
+          <option value="2.5">基础弹速: 2.5</option>
+          <option value="3">基础弹速: 3.0</option>
+          <option value="3.5">基础弹速: 3.5</option>
+        </select>
         <button id="btn-pause" type="button" title="暂停/继续 (P / Enter)">暂停</button>
         <button id="btn-title" type="button" title="返回主标题菜单">主菜单</button>
         <button id="btn-mute" type="button" title="开关游戏音效">音效: 开</button>
@@ -97,6 +111,8 @@
       const skinSelect = document.getElementById('skin-select');
       const stageSelect = document.getElementById('stage-select');
       const speedSelect = document.getElementById('speed-select');
+      const starRateSelect = document.getElementById('star-rate-select');
+      const bulletSpeedSelect = document.getElementById('bullet-speed-select');
       const btnJump = document.getElementById('btn-jump');
       const btnPause = document.getElementById('btn-pause');
       const btnTitle = document.getElementById('btn-title');
@@ -132,6 +148,19 @@
 
       syncSkinUI();
       populateStages();
+
+      starRateSelect.value = String(game.starRate);
+      bulletSpeedSelect.value = String(BC.BASIC_BULLET_SPEED);
+
+      starRateSelect.addEventListener('change', () => {
+        game.setStarRate(parseFloat(starRateSelect.value));
+        starRateSelect.blur();
+      });
+
+      bulletSpeedSelect.addEventListener('change', () => {
+        game.setBasicBulletSpeed(parseFloat(bulletSpeedSelect.value));
+        bulletSpeedSelect.blur();
+      });
 
       skinSelect.addEventListener('change', () => {
         game.setSkin(skinSelect.value);

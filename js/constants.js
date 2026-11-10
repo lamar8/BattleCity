@@ -77,6 +77,32 @@
     { speed: 0.85, bulletSpeed: 2.8, maxBullets: 2, power: 2 }, // 3 stars (destroys steel & full 8x8 brick)
   ];
 
+  const BULLET_SPEED_KEY = 'battle_city_bullet_speed_v1';
+
+  BC.setBasicBulletSpeed = function (speed) {
+    const spd = Math.max(1.0, Math.min(4.5, Number(speed) || 2.0));
+    const fastSpd = Math.round(spd * 1.4 * 10) / 10;
+    BC.BASIC_BULLET_SPEED = spd;
+    BC.PLAYER_TIERS[0].bulletSpeed = spd;
+    BC.PLAYER_TIERS[1].bulletSpeed = fastSpd;
+    BC.PLAYER_TIERS[2].bulletSpeed = fastSpd;
+    BC.PLAYER_TIERS[3].bulletSpeed = fastSpd;
+    try {
+      if (global.localStorage) {
+        global.localStorage.setItem(BULLET_SPEED_KEY, String(spd));
+      }
+    } catch (_) {}
+  };
+
+  (function loadBulletSpeed() {
+    let saved = 2.0;
+    try {
+      const v = parseFloat(global.localStorage && global.localStorage.getItem(BULLET_SPEED_KEY));
+      if (Number.isFinite(v) && v >= 1.0 && v <= 4.5) saved = v;
+    } catch (_) {}
+    BC.setBasicBulletSpeed(saved);
+  })();
+
   // Power-Up Types
   BC.POWERUP = {
     HELMET: 0,  // Temporary shield (10s)
