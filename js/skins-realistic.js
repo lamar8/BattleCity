@@ -5,7 +5,7 @@
   const gfx = BC._gfx;
   if (!gfx) return;
 
-  const { createCanvas, roundRectPath, octagonPath, drawFourPointStar, buildClassicSprites } = gfx;
+  const { createCanvas, roundRectPath, octagonPath, drawFourPointStar, buildClassicSprites, buildHDExplosionSet } = gfx;
 
   function hasVectorSupport() {
     const probe = createCanvas(4, 4).getContext('2d');
@@ -411,38 +411,14 @@
     flg.beginPath(); flg.moveTo(28, 20); flg.lineTo(106, 44); flg.lineTo(28, 68); flg.closePath(); flg.fill(); flg.stroke();
     cache.flag = fl;
 
-    return cache;
-  }
+    const exps = buildHDExplosionSet(['#322D27', '#E06028', '#FFE894'], {
+      inkColor: 'rgba(20, 18, 16, 0.55)',
+      glowColor: 'rgba(240, 120, 50, 0.35)',
+    });
+    cache.bulletExp = exps.bulletExp;
+    cache.tankExp = exps.tankExp;
 
-  function drawWWIIExplosion(ctx, cx, cy, frame, isBig) {
-    ctx.save();
-    if (!isBig) {
-      const r = [5, 8.5, 9.5][Math.min(2, frame)];
-      const alpha = frame === 2 ? 0.5 : 1.0;
-      ctx.fillStyle = `rgba(55, 50, 45, ${0.7 * alpha})`;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-      if (frame < 2) {
-        ctx.fillStyle = frame === 0 ? '#FFF6D6' : '#F08832';
-        ctx.beginPath(); ctx.arc(cx, cy, r * 0.65, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.restore();
-      return;
-    }
-    const r = [7, 13, 17, 20, 16][Math.min(4, frame)];
-    const alpha = frame >= 3 ? (frame === 3 ? 0.8 : 0.45) : 1.0;
-    // Smoke billow
-    ctx.fillStyle = `rgba(42, 38, 34, ${alpha * 0.85})`;
-    ctx.beginPath(); ctx.arc(cx - 2, cy - 2, r * 1.05, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + 3, cy + 2, r * 0.85, 0, Math.PI * 2); ctx.fill();
-    if (frame <= 3) {
-      ctx.fillStyle = `rgba(224, 90, 42, ${alpha})`;
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2); ctx.fill();
-    }
-    if (frame <= 2) {
-      ctx.fillStyle = '#FFE488';
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
+    return cache;
   }
 
   // =========================================================================
@@ -644,36 +620,14 @@
     flg.beginPath(); flg.moveTo(29, 20); flg.lineTo(110, 44); flg.lineTo(29, 70); flg.closePath(); flg.fill(); flg.stroke();
     cache.flag = fl;
 
-    return cache;
-  }
+    const exps = buildHDExplosionSet(['#7A1812', '#FF6820', '#FFF6C4'], {
+      inkColor: '#121016',
+      glowColor: 'rgba(255, 160, 40, 0.35)',
+    });
+    cache.bulletExp = exps.bulletExp;
+    cache.tankExp = exps.tankExp;
 
-  function drawMetalSlugExplosion(ctx, cx, cy, frame, isBig) {
-    ctx.save();
-    if (!isBig) {
-      const r = [5.5, 9, 10][Math.min(2, frame)];
-      const alpha = frame === 2 ? 0.55 : 1.0;
-      ctx.strokeStyle = `rgba(18, 16, 22, ${alpha})`;
-      ctx.lineWidth = 1.6;
-      ctx.fillStyle = frame === 0 ? `rgba(255, 240, 140, ${alpha})` : `rgba(255, 110, 40, ${alpha})`;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.restore();
-      return;
-    }
-    const r = [7, 13, 18, 21, 16][Math.min(4, frame)];
-    const alpha = frame >= 3 ? (frame === 3 ? 0.85 : 0.45) : 1.0;
-    ctx.strokeStyle = `rgba(18, 16, 22, ${alpha})`;
-    ctx.lineWidth = 1.8;
-    ctx.fillStyle = `rgba(255, 84, 56, ${alpha})`;
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    if (frame <= 3) {
-      ctx.fillStyle = `rgba(255, 217, 74, ${alpha})`;
-      ctx.beginPath(); ctx.arc(cx - 2, cy - 2, r * 0.65, 0, Math.PI * 2); ctx.fill();
-    }
-    if (frame <= 1) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
+    return cache;
   }
 
   // =========================================================================
@@ -888,36 +842,14 @@
     flg.beginPath(); flg.moveTo(28, 20); flg.lineTo(106, 44); flg.lineTo(28, 68); flg.closePath(); flg.fill(); flg.stroke();
     cache.flag = fl;
 
-    return cache;
-  }
+    const exps = buildHDExplosionSet(['#5A6470', '#FF7830', '#FFFFFF'], {
+      inkColor: 'rgba(20, 24, 30, 0.5)',
+      glowColor: 'rgba(255, 160, 80, 0.38)',
+    });
+    cache.bulletExp = exps.bulletExp;
+    cache.tankExp = exps.tankExp;
 
-  function drawModernExplosion(ctx, cx, cy, frame, isBig) {
-    ctx.save();
-    if (!isBig) {
-      const r = [5, 9, 10.5][Math.min(2, frame)];
-      const alpha = frame === 2 ? 0.5 : 1.0;
-      ctx.strokeStyle = `rgba(220, 240, 255, ${alpha * 0.85})`;
-      ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-      if (frame < 2) {
-        ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#F5B841';
-        ctx.beginPath(); ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.restore();
-      return;
-    }
-    const r = [7, 13, 18, 21, 16][Math.min(4, frame)];
-    const alpha = frame >= 3 ? (frame === 3 ? 0.8 : 0.4) : 1.0;
-    ctx.strokeStyle = `rgba(220, 235, 245, ${alpha * 0.75})`;
-    ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 1.15, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = `rgba(255, 110, 60, ${alpha})`;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.82, 0, Math.PI * 2); ctx.fill();
-    if (frame <= 2) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
+    return cache;
   }
 
   // =========================================================================
@@ -1108,41 +1040,19 @@
     flg.beginPath(); flg.moveTo(28, 20); flg.lineTo(106, 44); flg.lineTo(28, 68); flg.closePath(); flg.fill(); flg.stroke();
     cache.flag = fl;
 
+    const exps = buildHDExplosionSet(['#4A2A18', '#C84228', '#FFF0B8'], {
+      inkColor: 'rgba(35, 20, 10, 0.4)',
+      glowColor: 'rgba(214, 150, 60, 0.3)',
+    });
+    cache.bulletExp = exps.bulletExp;
+    cache.tankExp = exps.tankExp;
+
     return cache;
   }
 
-  function drawWarTableExplosion(ctx, cx, cy, frame, isBig) {
-    ctx.save();
-    if (!isBig) {
-      const r = [5, 8.5, 9.5][Math.min(2, frame)];
-      const alpha = frame === 2 ? 0.55 : 1.0;
-      ctx.fillStyle = `rgba(56, 36, 18, ${alpha * 0.65})`;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-      if (frame < 2) {
-        ctx.fillStyle = frame === 0 ? '#FFF2C0' : '#D9542E';
-        drawFourPointStar(ctx, cx, cy, r * 0.85, r * 0.35); ctx.fill();
-      }
-      ctx.restore();
-      return;
-    }
-    const r = [7, 13, 17, 20, 16][Math.min(4, frame)];
-    const alpha = frame >= 3 ? (frame === 3 ? 0.8 : 0.45) : 1.0;
-    ctx.fillStyle = `rgba(45, 28, 16, ${alpha * 0.72})`;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 1.05, 0, Math.PI * 2); ctx.fill();
-    if (frame <= 3) {
-      ctx.fillStyle = `rgba(200, 62, 40, ${alpha})`;
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2); ctx.fill();
-    }
-    if (frame <= 1) {
-      ctx.fillStyle = '#FFF0B8';
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // Register all 4 Realistic Skins!
-  BC.registerSkin('wwii', buildWWIISprites(), drawWWIITankHD, drawWWIIExplosion);
-  BC.registerSkin('metalslug', buildMetalSlugSprites(), drawMetalSlugTankHD, drawMetalSlugExplosion);
-  BC.registerSkin('modern', buildModernSprites(), drawModernTankHD, drawModernExplosion);
-  BC.registerSkin('wartable', buildWarTableSprites(), drawWarTableTankHD, drawWarTableExplosion);
+  // Register all 4 Realistic Skins (all sharing unified 7-phase Battle City explosion grammar)
+  BC.registerSkin('wwii', buildWWIISprites(), drawWWIITankHD);
+  BC.registerSkin('metalslug', buildMetalSlugSprites(), drawMetalSlugTankHD);
+  BC.registerSkin('modern', buildModernSprites(), drawModernTankHD);
+  BC.registerSkin('wartable', buildWarTableSprites(), drawWarTableTankHD);
 })(window);

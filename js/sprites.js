@@ -218,6 +218,196 @@
     return rows.map((r) => (r + '................').slice(0, 16));
   }
 
+  // Exact 1985 Famicom ROM CHR-ROM Explosion Bitmaps ($F0/$F4/$F8 16x16 & $D0/$E0 32x32)
+  const EXPL1_ROWS = [
+    '................',
+    '................',
+    '.......3.....3..',
+    '...3...3..3.3...',
+    '...133.13.331...',
+    '....11331131....',
+    '.....132323133..',
+    '...333132.211...',
+    '.....13.2231....',
+    '.....33231231...',
+    '....31.3133131..',
+    '...31.13.13..3..',
+    '......3...1.....',
+    '................',
+    '................',
+    '................',
+  ];
+  const EXPL2_ROWS = [
+    '................',
+    '......1...3.....',
+    '.3..1.31.31...3.',
+    '.133..13.31.331.',
+    '..113113331311..',
+    '...1323331233.1.',
+    '.1..132.23311...',
+    '...3333222.1333.',
+    '33.313.22.3311..',
+    '..11331222311.1.',
+    '....3231.1323...',
+    '..1.1323332133..',
+    '...13131133.113.',
+    '...31131.13...1.',
+    '..31..3.1.11....',
+    '................',
+  ];
+  const EXPL3_ROWS = [
+    '....1.1....1..1.',
+    '.3...3..3.1..31.',
+    '.1133..33...31..',
+    '..11311311.331..',
+    '...12333313311.1',
+    '.3.13323.3321...',
+    '..1332122.2131..',
+    '3333.32..2333333',
+    '.1113312.23111..',
+    '...111.32.1133..',
+    '.3113313.323113.',
+    '..3332313133....',
+    '.131131331133.1.',
+    '.31..1.131.113..',
+    '31..1...3....13.',
+    '........3.1...1.',
+  ];
+  const EXPL4_ROWS = [
+    '................................',
+    '.....................3.......3..',
+    '..3.......3..........3.......3..',
+    '...3..3..3...111.331..3.....3...',
+    '....1..3...3331113311.3.3..1....',
+    '.....3.1..31333.3..3113.3.33....',
+    '......3...3313.3111.3333.3......',
+    '....33...3333333331333333.3.....',
+    '.......1113..333133133.13....13.',
+    '......311133333133.33.3313...3..',
+    '1....33.31333233233313331333....',
+    '.31.13.333223333213331313.313...',
+    '..3.33.33332232323322133.3113...',
+    '.3...33.31323222222323333.33....',
+    '..3.3133113323233232133333.33...',
+    '....11.131332231.323333.3.311...',
+    '......33132223.313.23.1333.11...',
+    '.....33333332232122231113331..3.',
+    '.....33.333323221233233.3311...3',
+    '....13.331323332321333331111....',
+    '....113111333312233331333.1.3...',
+    '..3..11113333113233333133.33....',
+    '...3....13.3113333.33.13.31.....',
+    '........33.333.3333..113311.....',
+    '......31.33.3.1133331133.1......',
+    '.....1.3.3333311..111.3.3.33....',
+    '....3......1111.........3..1....',
+    '...3.....3........3..3.....31...',
+    '..1........3.......131......31..',
+    '..3................3.3.......3..',
+    '................................',
+    '................................',
+  ];
+  const EXPL5_ROWS = [
+    '3...............................',
+    '13...3.............1133.......3.',
+    '.13...1.....3111.1333311....31..',
+    '..11....33.3331.1333..311..31...',
+    '...11..313332333.33.31.311..1...',
+    '...1..33112133333333331.31......',
+    '......31333313333331133.31.33...',
+    '....11333333333113333133311331..',
+    '....13333.311333313333331133111.',
+    '.....33..33332333323333133.311..',
+    '...333.333233322332232313333.31.',
+    '..13333333222323222323333133.313',
+    '..3133.3332.223122323333313.3111',
+    '...13.133332332.2323332313.3113.',
+    '...11.13333222231222323333331...',
+    '.3.333.1322222333.323333331133..',
+    '.3333333333221.3322223333133311.',
+    '3332133332323321332.32223333331.',
+    '333313332332222.22323333333.3313',
+    '1331323333223223222233333133.331',
+    '11113311322113222332233113333.3.',
+    '.11.333333333323333332333133.313',
+    '.....333333313333331333333333.31',
+    '....33.33.3333333.11.33333331313',
+    '....333..113331333..3331.33..133',
+    '....33333311333.333313311..3113.',
+    '....133331.3333.33311133111113..',
+    '..3..1311..11133.111.3233113....',
+    '...3..11......333...33311....3..',
+    '..1.1.....31...3333333113..1.1..',
+    '.3..1.......3...33113111....1.3.',
+    '3..........3.....111.1.........1',
+  ];
+
+  function renderHDExplosionBitmap(rows, pal, opts = {}) {
+    const h = rows.length;
+    const w = rows[0].length;
+    const SS = 6; // 96x96 for 16x16, 192x192 for 32x32
+    const c = createCanvas(w * SS, h * SS);
+    const g = c.getContext('2d');
+    if (typeof g.beginPath !== 'function') return c;
+
+    // Optional outer ink / smoke silhouette
+    if (opts.inkColor) {
+      g.fillStyle = opts.inkColor;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (rows[y][x] === '.') continue;
+          g.beginPath();
+          g.arc((x + 0.5) * SS, (y + 0.5) * SS, SS * 0.96, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    }
+
+    // Optional soft luminous backdrop halo for 32x32 bursts
+    if (opts.glowColor && typeof g.createRadialGradient === 'function') {
+      const cx = (w * SS) / 2;
+      const cy = (h * SS) / 2;
+      const rad = (w * SS) * 0.48;
+      const halo = g.createRadialGradient(cx, cy, rad * 0.1, cx, cy, rad);
+      halo.addColorStop(0, opts.glowColor);
+      halo.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = halo;
+      g.beginPath();
+      g.arc(cx, cy, rad, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    const passes = [
+      ['1', pal[0], SS * 0.80],
+      ['2', pal[1], SS * 0.78],
+      ['3', pal[2], SS * 0.68],
+    ];
+    for (const [ch, col, rad] of passes) {
+      g.fillStyle = col;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (rows[y][x] !== ch) continue;
+          g.beginPath();
+          g.arc((x + 0.5) * SS, (y + 0.5) * SS, rad, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    }
+    return c;
+  }
+
+  function buildHDExplosionSet(pal, opts = {}) {
+    const hd1 = renderHDExplosionBitmap(EXPL1_ROWS, pal, opts);
+    const hd2 = renderHDExplosionBitmap(EXPL2_ROWS, pal, opts);
+    const hd3 = renderHDExplosionBitmap(EXPL3_ROWS, pal, opts);
+    const hd4 = renderHDExplosionBitmap(EXPL4_ROWS, pal, opts);
+    const hd5 = renderHDExplosionBitmap(EXPL5_ROWS, pal, opts);
+    return {
+      bulletExp: [hd1, hd2, hd3],
+      tankExp: [hd1, hd2, hd3, hd4, hd5, hd3, hd1],
+    };
+  }
+
   function buildClassicSprites() {
     const C = BC.THEMES.classic;
     const cache = {};
@@ -312,65 +502,17 @@
     const bulletUp = ['.33.', '3223', '3223', '.11.'];
     cache.bullets = [0, 1, 2, 3].map((d) => renderBitmap(bulletUp, ['#808080', '#D8D8D8', '#FCFCFC'], d));
 
-    // Authentic 1985 FC 16x16 3-frame bullet impact starburst (EXPL_SMALL -> EXPL_MEDIUM -> EXPL_LARGE)
-    // Colors: '1'=#D82800 (crimson), '2'=#FC9838 (orange), '3'=#FCFCFC (white hot core)
-    const bulletExpFrames = [
-      [
-        '................',
-        '................',
-        '................',
-        '......2..2......',
-        '....2..33..2....',
-        '.....233332.....',
-        '...2333333332...',
-        '....33333333....',
-        '....33333333....',
-        '...2333333332...',
-        '.....233332.....',
-        '....2..33..2....',
-        '......2..2......',
-        '................',
-        '................',
-        '................',
-      ],
-      [
-        '.......11.......',
-        '....1..22..1....',
-        '..1..223322..1..',
-        '...1223333221...',
-        '.1.2333223332.1.',
-        '..233221122332..',
-        '.12321.33.12321.',
-        '12332.3333.23321',
-        '12332.3333.23321',
-        '.12321.33.12321.',
-        '..233221122332..',
-        '.1.2333223332.1.',
-        '...1223333221...',
-        '..1..223322..1..',
-        '....1..22..1....',
-        '.......11.......',
-      ],
-      [
-        '..1....11....1..',
-        '....1.2..2.1....',
-        '.1..22....22..1.',
-        '..12..1..1..21..',
-        '1.2..1....1..2.1',
-        '..2.1......1.2..',
-        '12............21',
-        '12............21',
-        '12............21',
-        '12............21',
-        '..2.1......1.2..',
-        '1.2..1....1..2.1',
-        '..12..1..1..21..',
-        '.1..22....22..1.',
-        '....1.2..2.1....',
-        '..1....11....1..',
-      ],
-    ];
-    cache.bulletExp = bulletExpFrames.map((f) => renderBitmap(f, ['#D82800', '#FC9838', '#FCFCFC'], 0));
+    // Exact 1985 Famicom ROM CHR-ROM Explosion Bitmaps ($F0/$F4/$F8 16x16 & $D0/$E0 32x32)
+    // Palette SP3 [0x04, 0x16, 0x20] = ['#940084', '#F83800', '#FCFCFC']
+    const SP3_PAL = ['#940084', '#F83800', '#FCFCFC'];
+    const e1 = renderBitmap(EXPL1_ROWS, SP3_PAL, 0);
+    const e2 = renderBitmap(EXPL2_ROWS, SP3_PAL, 0);
+    const e3 = renderBitmap(EXPL3_ROWS, SP3_PAL, 0);
+    const e4 = renderBitmap(EXPL4_ROWS, SP3_PAL, 0);
+    const e5 = renderBitmap(EXPL5_ROWS, SP3_PAL, 0);
+
+    cache.bulletExp = [e1, e2, e3];
+    cache.tankExp = [e1, e2, e3, e4, e5, e3, e1];
 
     const spawnFrames = [
       [
@@ -1141,6 +1283,13 @@
     flg.lineWidth = 4; flg.strokeStyle = '#FCE7A2'; flg.stroke();
     cache.flag = fl;
 
+    const exps = buildHDExplosionSet(['#A82436', '#FF8E3C', '#FFFBE0'], {
+      inkColor: 'rgba(30, 14, 20, 0.45)',
+      glowColor: 'rgba(255, 195, 90, 0.42)',
+    });
+    cache.bulletExp = exps.bulletExp;
+    cache.tankExp = exps.tankExp;
+
     return cache;
   }
 
@@ -1637,6 +1786,13 @@
     flg.fill(); flg.stroke();
     cache.flag = fl;
 
+    const exps = buildHDExplosionSet(['#FF2A85', '#00F0FF', '#FFFFFF'], {
+      inkColor: 'rgba(12, 6, 28, 0.5)',
+      glowColor: 'rgba(0, 240, 255, 0.48)',
+    });
+    cache.bulletExp = exps.bulletExp;
+    cache.tankExp = exps.tankExp;
+
     return cache;
   }
 
@@ -1661,6 +1817,7 @@
     octagonPath,
     drawFourPointStar,
     buildClassicSprites,
+    buildHDExplosionSet,
   };
 
   BC.registerSkin = function (name, spriteSet, tankFn, explosionFn) {
@@ -1714,156 +1871,27 @@
     if (mask & 8) ctx.drawImage(brickSrc, sw, sh, sw, sh, px + 4, py + 4, 4, 4);
   };
 
-  // Skin-aware Explosions (Classic NES pixel burst / Genshin anime blast / Cyberpunk EMP Plasma)
+  // Unified Battle City 7-phase ROM Explosion Renderer across all 7 skins
   BC.drawExplosion = function (ctx, cx, cy, frame, isBig) {
     const skin = BC.getSkin();
-    if (skin === 'classic') {
-      const x = Math.round(cx);
-      const y = Math.round(cy);
+    const sprites = BC.SKIN_SPRITES[skin] || BC.SKIN_SPRITES.classic;
+    const x = skin === 'classic' ? Math.round(cx) : cx;
+    const y = skin === 'classic' ? Math.round(cy) : cy;
 
-      if (!isBig) {
-        const expSprite = BC.SKIN_SPRITES.classic.bulletExp[Math.min(2, frame)];
-        if (expSprite) {
-          ctx.drawImage(expSprite, x - 8, y - 8, 16, 16);
-        }
-        return;
-      }
-
-      const sizes = [6, 11, 15, 16, 12];
-      const r = sizes[Math.min(4, frame)];
-      if (frame <= 2) {
-        ctx.fillStyle = '#D82800';
-        ctx.fillRect(x - r, y - Math.floor(r * 0.6), r * 2, Math.floor(r * 1.2));
-        ctx.fillRect(x - Math.floor(r * 0.6), y - r, Math.floor(r * 1.2), r * 2);
-        ctx.fillStyle = '#FC9838';
-        const r2 = Math.floor(r * 0.75);
-        ctx.fillRect(x - r2, y - r2, r2 * 2, r2 * 2);
-        ctx.fillStyle = '#FCE4A0';
-        const r3 = Math.floor(r * 0.4);
-        ctx.fillRect(x - r3, y - r3, r3 * 2, r3 * 2);
-        ctx.fillStyle = '#FCFCFC';
-        ctx.fillRect(x - 3, y - 3, 6, 6);
-      } else {
-        ctx.fillStyle = frame === 3 ? '#FC9838' : '#D82800';
-        const d = r - 2;
-        ctx.fillRect(x - d, y - d, 4, 4);
-        ctx.fillRect(x + d - 4, y - d, 4, 4);
-        ctx.fillRect(x - d, y + d - 4, 4, 4);
-        ctx.fillRect(x + d - 4, y + d - 4, 4, 4);
-        ctx.fillRect(x - 2, y - r, 4, 5);
-        ctx.fillRect(x - 2, y + r - 5, 4, 5);
-        ctx.fillRect(x - r, y - 2, 5, 4);
-        ctx.fillRect(x + r - 5, y - 2, 5, 4);
-        if (frame === 3) {
-          ctx.fillStyle = '#FCE4A0';
-          ctx.fillRect(x - 4, y - 4, 8, 8);
-        }
-      }
-      return;
-    }
-
-    if (typeof ctx.beginPath !== 'function') return;
-
-    if (BC._explosionRenderers[skin]) {
-      BC._explosionRenderers[skin](ctx, cx, cy, frame, isBig);
-      return;
-    }
-
-    ctx.save();
-
-    if (skin === 'cyberpunk') {
-      if (!isBig) {
-        const r = [5.5, 9, 10][Math.min(2, frame)];
-        const alpha = frame === 2 ? 0.55 : 1.0;
-        ctx.strokeStyle = `rgba(0, 240, 255, ${alpha})`;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-        if (frame < 2) {
-          ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FF2A85';
-          drawFourPointStar(ctx, cx, cy, r * 0.9, r * 0.35);
-          ctx.fill();
-        } else {
-          ctx.fillStyle = '#FCEE0A';
-          for (const [dx, dy] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) {
-            ctx.fillRect(cx + dx - 0.8, cy + dy - 0.8, 1.6, 1.6);
-          }
-        }
-        ctx.restore();
-        return;
-      }
-
-      const radii = [7, 13, 17, 20, 16];
-      const r = radii[Math.min(4, frame)];
-      const alpha = frame >= 3 ? (frame === 3 ? 0.85 : 0.45) : 1.0;
-
-      // Dual neon EMP shockwave rings
-      ctx.strokeStyle = `rgba(0, 240, 255, ${alpha})`;
-      ctx.lineWidth = 1.8;
-      ctx.beginPath(); ctx.arc(cx, cy, r * 1.18, 0, Math.PI * 2); ctx.stroke();
-
-      ctx.fillStyle = `rgba(255, 42, 133, ${alpha * 0.85})`;
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.88, 0, Math.PI * 2); ctx.fill();
-
-      if (frame <= 3) {
-        ctx.fillStyle = `rgba(252, 238, 10, ${alpha})`;
-        drawFourPointStar(ctx, cx, cy, r * 0.8, r * 0.28);
-        ctx.fill();
-      }
-      if (frame <= 1) {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.restore();
-      return;
-    }
-
-    // Genshin Modern 2D Cel-Shaded Elemental Blast
     if (!isBig) {
-      const r = [5.5, 9, 10][Math.min(2, frame)];
-      const alpha = frame === 2 ? 0.5 : 1.0;
-      ctx.strokeStyle = `rgba(255, 224, 128, ${alpha})`;
-      ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-      if (frame < 2) {
-        ctx.fillStyle = `rgba(255, 110, 50, ${0.75 * alpha})`;
-        ctx.beginPath(); ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = frame === 0 ? '#FFFFFF' : '#FFE38A';
-        drawFourPointStar(ctx, cx, cy, r * 0.88, r * 0.36);
-        ctx.fill();
-      } else {
-        ctx.fillStyle = '#FFE38A';
-        for (const [dx, dy] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) {
-          ctx.beginPath(); ctx.arc(cx + dx, cy + dy, 1.1, 0, Math.PI * 2); ctx.fill();
-        }
+      const expSprite = sprites.bulletExp && sprites.bulletExp[Math.min(2, frame)];
+      if (expSprite) {
+        ctx.drawImage(expSprite, x - 8, y - 8, 16, 16);
       }
-      ctx.restore();
       return;
     }
 
-    const radii = [7, 13, 17, 19, 15];
-    const r = radii[Math.min(4, frame)];
-    const alpha = frame >= 3 ? (frame === 3 ? 0.85 : 0.45) : 1.0;
-
-    // Expanding golden shockwave ring
-    ctx.strokeStyle = `rgba(255, 224, 128, ${alpha * 0.9})`;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 1.15, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Layered anime pyro cloud
-    ctx.fillStyle = `rgba(218, 56, 50, ${alpha})`;
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2); ctx.fill();
-
-    if (frame <= 3) {
-      ctx.fillStyle = `rgba(255, 168, 70, ${alpha})`;
-      ctx.beginPath(); ctx.arc(cx - 1.5, cy - 1.5, r * 0.65, 0, Math.PI * 2); ctx.fill();
+    const tankExps = sprites.tankExp;
+    if (tankExps && tankExps.length > 0) {
+      const idx = Math.min(tankExps.length - 1, frame);
+      const expSprite = tankExps[idx];
+      const logicalSize = (idx === 3 || idx === 4) ? 32 : 16;
+      ctx.drawImage(expSprite, x - logicalSize / 2, y - logicalSize / 2, logicalSize, logicalSize);
     }
-    if (frame <= 2) {
-      ctx.fillStyle = '#FFFCE6';
-      drawFourPointStar(ctx, cx, cy, r * 0.72, r * 0.25);
-      ctx.fill();
-    }
-    ctx.restore();
   };
 })(window);

@@ -594,15 +594,18 @@
   }
 
   // =========================================================================
-  // Explosion (Small & Big)
+  // Explosion (Small & Big — ROM 7-phase expand/contract sequence)
   // =========================================================================
+  const BIG_FRAME_SEQ = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6, 6, 6];
+
   class Explosion {
-    constructor(cx, cy, isBig = false) {
+    constructor(cx, cy, isBig = false, onComplete = null) {
       this.cx = cx;
       this.cy = cy;
       this.isBig = isBig;
+      this.onComplete = onComplete;
       this.tick = 0;
-      this.maxTicks = isBig ? 25 : 12;
+      this.maxTicks = isBig ? 24 : 12;
       this.alive = true;
     }
 
@@ -610,13 +613,16 @@
       this.tick++;
       if (this.tick >= this.maxTicks) {
         this.alive = false;
+        if (typeof this.onComplete === 'function') {
+          this.onComplete();
+        }
       }
     }
 
     draw(ctx) {
       if (!this.alive) return;
       const frame = this.isBig
-        ? Math.min(4, Math.floor(this.tick / 5))
+        ? BIG_FRAME_SEQ[Math.min(23, this.tick)]
         : Math.min(2, Math.floor(this.tick / 4));
       BC.drawExplosion(
         ctx,

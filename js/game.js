@@ -889,8 +889,14 @@
                   BC.Audio.playHitArmor();
                 } else {
                   e.alive = false;
-                  this.explosions.push(new BC.Explosion(e.x + 8, e.y + 8, true));
-                  this.floatingScores.push(new BC.FloatingScore(e.x + 8, e.y + 8, e.points));
+                  const sx = e.x + 8;
+                  const sy = e.y + 8;
+                  const pts = e.points;
+                  this.explosions.push(
+                    new BC.Explosion(sx, sy, true, () => {
+                      this.floatingScores.push(new BC.FloatingScore(sx, sy, pts));
+                    })
+                  );
                   BC.Audio.playExplodeEnemy();
                   const shooter = this.players[b.playerIndex];
                   if (shooter) {
