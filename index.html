@@ -138,7 +138,8 @@
         for (let s = 1; s <= BC.TOTAL_CLASSIC_STAGES; s++) {
           const opt = document.createElement('option');
           opt.value = String(s);
-          opt.textContent = `第 ${s} 关`;
+          const name = (BC.STAGE_NAMES && BC.STAGE_NAMES[s]) ? ` - ${BC.STAGE_NAMES[s]}` : '';
+          opt.textContent = `第 ${s} 关${name}`;
           stageSelect.appendChild(opt);
         }
         if (hasCustom) {

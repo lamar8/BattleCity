@@ -17,7 +17,7 @@ This project requires **zero external build tools, zero package dependencies, an
 
 ### 1. 1:1 ROM-Accurate Gameplay & Mechanics
 - **Native NES Aspect & Coordinate System**: Built on the native 256×240 resolution layout (208×208 playfield, 13×13 blocks / 26×26 8px sub-tiles, 32px HUD sidebar).
-- **All 35 Original Stages & Waves**: Fully matched against the authentic Famicom ROM `StageDataTable ($F07A)` and VGMaps, including all 35 stage tilemaps and the exact 20-tank wave queue per stage (Basic, Fast, Power, and Armor tanks).
+- **Expanded 108 Diverse Stages & Tailored Waves**: Fully preserves the authentic 35 Famicom ROM stages and dramatically expands the repertoire to **108 unique battlefields**! From Bagua Labyrinths, Archipelago Rivers, and Iron Citadels to Space Invaders and Imperial Apex Fortresses, every stage boasts its own topological theme and tailored 20-tank wave composition (Basic, Fast, Power, and Armor tanks).
 - **Signature Physics & Controls**:
   - **8px Corner Snapping**: Faithful corner alignment when turning at intersections for smooth corridor navigation without getting stuck.
   - **Quadrant-Level Brick Destruction**: 4-bit sub-tile masks (TL/TR/BL/BR) with 10px bullet lateral footprint for authentic dual-brick breaching, and 3-star steel penetration.
@@ -102,7 +102,7 @@ Switch instantly between 7 visual aesthetics with 4x supersampled vector graphic
     ├── font.js             # NES 8x8 bitmap glyph renderer & HD antialiased vector typography
     ├── sprites.js          # Core sprite library (Classic pixel art, Genshin, Cyberpunk & explosions)
     ├── skins-realistic.js  # WWII, Metal Slug, Modern, and War Table theme assets
-    ├── levels.js           # 35-stage ROM layouts parser, subtile bitmasks & custom stage IO
+    ├── levels.js           # 108-stage map layouts parser, subtile bitmasks & custom stage IO
     ├── audio.js            # Web Audio NES 2A03 APU 4-channel hardware synthesizer
     ├── entities.js         # MapGrid, Tank, Bullet, PowerUp, SpawnStar, and Explosion classes
     ├── editor.js           # Construction mode state machine & brush painting logic
