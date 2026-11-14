@@ -49,6 +49,10 @@
           <option value="3">基础弹速: 3.0</option>
           <option value="3.5">基础弹速: 3.5</option>
         </select>
+        <div class="life-controls" role="group" aria-label="直接加命">
+          <button id="btn-life-p1" type="button" title="给 1P 直接增加 1 条命（本局进行中可用）" disabled>1P +1命</button>
+          <button id="btn-life-p2" type="button" title="给 2P 直接增加 1 条命（仅双人模式可用）" disabled>2P +1命</button>
+        </div>
         <button id="btn-pause" type="button" title="暂停/继续 (P / Enter)">暂停</button>
         <button id="btn-title" type="button" title="返回主标题菜单">主菜单</button>
         <button id="btn-mute" type="button" title="开关游戏音效">音效: 开</button>
@@ -151,6 +155,8 @@
       const bulletSpeedSelect = document.getElementById('bullet-speed-select');
       const btnJump = document.getElementById('btn-jump');
       const btnVictoryDemo = document.getElementById('btn-victory-demo');
+      const btnLifeP1 = document.getElementById('btn-life-p1');
+      const btnLifeP2 = document.getElementById('btn-life-p2');
       const btnPause = document.getElementById('btn-pause');
       const btnTitle = document.getElementById('btn-title');
       const btnMute = document.getElementById('btn-mute');
@@ -237,6 +243,8 @@
         }
         btnPause.textContent = info.paused ? '继续' : '暂停';
         btnPause.classList.toggle('active', !!info.paused);
+        btnLifeP1.disabled = !game.canAddLife(0);
+        btnLifeP2.disabled = !game.canAddLife(1);
         syncSkinUI();
 
         if (info.state === 'VICTORY' && info.victoryReward) {
@@ -280,6 +288,16 @@
         const s = parseInt(stageSelect.value, 10) || 1;
         game.jumpToStage(s, game.isTwoPlayer);
         btnJump.blur();
+      });
+
+      btnLifeP1.addEventListener('click', () => {
+        game.addLife(0);
+        btnLifeP1.blur();
+      });
+
+      btnLifeP2.addEventListener('click', () => {
+        game.addLife(1);
+        btnLifeP2.blur();
       });
 
       btnPause.addEventListener('click', () => {

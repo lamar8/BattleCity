@@ -81,7 +81,8 @@ body {
   gap: 6px;
 }
 
-.stage-jump {
+.stage-jump,
+.life-controls {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -113,6 +114,26 @@ button:active {
 button.active {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  background: var(--btn-bg);
+  border-color: var(--panel-border);
+}
+
+#btn-life-p1:not(:disabled) {
+  border-color: #b8862f;
+  color: #f8e470;
+}
+
+#btn-life-p2:not(:disabled) {
+  border-color: #398b45;
+  color: #94f878;
 }
 
 .screen-bezel {

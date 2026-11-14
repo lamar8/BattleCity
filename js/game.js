@@ -268,6 +268,26 @@
       }
     }
 
+    canAddLife(playerIndex) {
+      const isActiveRun =
+        this.state === STATE.STAGE_SELECT ||
+        this.state === STATE.PLAYING ||
+        this.state === STATE.STAGE_CLEAR_DELAY ||
+        (this.state === STATE.TALLY && !this.gameOverAfterTally);
+      return isActiveRun &&
+        !!this.players[playerIndex] &&
+        (playerIndex === 0 || (playerIndex === 1 && this.isTwoPlayer));
+    }
+
+    addLife(playerIndex) {
+      if (!this.canAddLife(playerIndex)) return false;
+      BC.Audio.unlock();
+      this.players[playerIndex].lives++;
+      BC.Audio.playLifeUp();
+      this._notifyUI();
+      return true;
+    }
+
     setSpeedScale(scale) {
       this.speedScale = Math.max(0.5, Math.min(1.5, Number(scale) || 1.0));
       try {
