@@ -254,6 +254,13 @@
       this._notifyUI();
     }
 
+    randomizeSkin() {
+      if (typeof BC.randomizeSkin === 'function') {
+        BC.randomizeSkin();
+        this._notifyUI();
+      }
+    }
+
     _notifyUI() {
       if (typeof this.onStateChange === 'function') {
         this.onStateChange({
@@ -359,6 +366,11 @@
     // STAGE SELECT & CURTAIN
     // =======================================================================
     _enterStageSelect(allowBrowse) {
+      if (typeof BC.isRandomSkin === 'function' && BC.isRandomSkin()) {
+        if (typeof BC.randomizeSkin === 'function') {
+          BC.randomizeSkin();
+        }
+      }
       this.canBrowseStage = allowBrowse;
       this.state = STATE.STAGE_SELECT;
       this.curtainProgress = 0;
@@ -605,6 +617,9 @@
           t.stunTimer--;
           t.burstQueue = 0;
           t.burstTimer = 0;
+          t.slideTimer = 0;
+          t.iceTurnDelay = 0;
+          t.iceTurnTargetDir = null;
         }
         if (t.shootCooldown > 0) t.shootCooldown--;
         if (t.burstTimer > 0) t.burstTimer--;
@@ -612,22 +627,129 @@
 
         if (allowPlayerControl && t.stunTimer <= 0) {
           const ctrl = this._readPlayerControls(p.index);
-          if (ctrl.dir !== null) {
-            t.tryMove(ctrl.dir, this.map, allTanks);
-            anyPlayerMoving = true;
-            if (this.map.isTankOnIce(t.x, t.y, t.w, t.h)) {
-              t.slideDir = ctrl.dir;
-              t.slideTimer = BC.FRAMES.ICE_SLIDE_FRAMES;
-            } else {
-              t.slideTimer = 0;
-            }
-          } else if (t.slideTimer > 0) {
-            if (this.map.isTankOnIce(t.x, t.y, t.w, t.h)) {
-              t.slideTimer--;
-              t.tryMove(t.slideDir, this.map, allTanks);
+          const onIce = this.map.isTankOnIce(t.x, t.y, t.w, t.h);
+
+          if (!onIce) {
+            // Normal dry ground: instant turn and move, zero ice inertia
+            t.slideTimer = 0;
+            t.iceTurnDelay = 0;
+            t.iceTurnTargetDir = null;
+            if (ctrl.dir !== null) {
+              t.tryMove(ctrl.dir, this.map, allTanks);
               anyPlayerMoving = true;
-            } else {
-              t.slideTimer = 0;
+              t.slideDir = ctrl.dir;
+            }
+          } else {
+            // Tank is on ice: authentic ice physics with turn delay & turn inertia
+            if (t.iceTurnDelay > 0) {
+              // During turn transition:
+              // 1. If player steers back to current slide direction, cancel turn
+              if (ctrl.dir === t.slideDir) {
+                t.iceTurnDelay = 0;
+                t.iceTurnTargetDir = null;
+                t.tryMove(t.slideDir, this.map, allTanks);
+                anyPlayerMoving = true;
+                t.slideTimer = BC.FRAMES.ICE_SLIDE_FRAMES;
+              } else {
+                // If player inputs another turn direction, update target
+                if (ctrl.dir !== null) {
+                  t.iceTurnTargetDir = ctrl.dir;
+                } else if (t.slideTimer > 0) {
+                  // If player released keys, momentum timer decays during turn drift
+                  t.slideTimer--;
+                }
+
+                t.iceTurnDelay--;
+
+                // Drift along current momentum direction (转向惯性与阻尼衰减)
+                const driftProgress = Math.max(0, t.slideTimer / BC.FRAMES.ICE_SLIDE_FRAMES);
+                const driftFactor = ctrl.dir !== null ? 0.85 : Math.max(0.18, Math.pow(driftProgress, 0.75));
+                const moved = t.tryMove(t.slideDir, this.map, allTanks, t.speed * driftFactor);
+                anyPlayerMoving = true;
+                // If blocked by barrier, cancel remaining turn delay to avoid getting stuck
+                if (!moved) {
+                  t.iceTurnDelay = 0;
+                }
+              }
+            } else if (t.iceTurnTargetDir !== null) {
+              // Turn delay expired: strictly execute single move in new direction
+              const targetDir = ctrl.dir !== null ? ctrl.dir : t.iceTurnTargetDir;
+              t.iceTurnTargetDir = null;
+
+              if (ctrl.dir !== null) {
+                t.slideTimer = BC.FRAMES.ICE_SLIDE_FRAMES;
+              }
+
+              if (ctrl.dir !== null || t.slideTimer > 0) {
+                t.slideDir = targetDir;
+                const exitSpeed =
+                  ctrl.dir !== null
+                    ? t.speed
+                    : t.speed *
+                      Math.max(
+                        0.18,
+                        Math.pow(
+                          Math.max(0, t.slideTimer / BC.FRAMES.ICE_SLIDE_FRAMES),
+                          0.75
+                        )
+                      );
+                const moved = t.tryMove(targetDir, this.map, allTanks, exitSpeed);
+                anyPlayerMoving = true;
+                if (!moved && ctrl.dir === null) {
+                  t.slideTimer = 0;
+                }
+              } else {
+                // Momentum exhausted during turn drift without key pressed: align heading and stop
+                t.dir = targetDir;
+                t.slideDir = targetDir;
+                t.slideTimer = 0;
+              }
+            } else if (ctrl.dir !== null) {
+              // Player is pressing a direction key
+              const isTurn = t.slideTimer > 0 && ctrl.dir !== t.slideDir;
+
+              if (isTurn) {
+                // Initiating a turn while in motion on ice: trigger turn delay & inertia
+                const isReverse = (ctrl.dir ^ t.slideDir) === 2;
+                const baseDelay = isReverse
+                  ? BC.FRAMES.ICE_REVERSE_DELAY
+                  : BC.FRAMES.ICE_TURN_DELAY;
+                t.iceTurnDelay = Math.max(1, Math.min(t.slideTimer, baseDelay)) - 1;
+                t.iceTurnTargetDir = ctrl.dir;
+
+                // Carry forward initial momentum frame along old direction
+                const moved = t.tryMove(t.slideDir, this.map, allTanks);
+                anyPlayerMoving = true;
+                if (!moved) {
+                  // Blocked by barrier: cancel remaining turn delay and queue turn for immediate execution next frame
+                  t.iceTurnDelay = 0;
+                  t.iceTurnTargetDir = ctrl.dir;
+                }
+              } else {
+                // Moving straight in current direction, or starting from standstill
+                t.tryMove(ctrl.dir, this.map, allTanks);
+                anyPlayerMoving = true;
+                t.slideDir = ctrl.dir;
+                t.slideTimer = BC.FRAMES.ICE_SLIDE_FRAMES;
+                t.iceTurnDelay = 0;
+                t.iceTurnTargetDir = null;
+              }
+            } else if (t.slideTimer > 0) {
+              // Stopping inertia: keys released, smoothly decelerate over time until stopping
+              t.slideTimer--;
+              t.iceTurnDelay = 0;
+              t.iceTurnTargetDir = null;
+
+              // Non-linear deceleration curve (模拟地面阻尼与摩擦阻力减速滑停)
+              const progress = Math.max(0, t.slideTimer / BC.FRAMES.ICE_SLIDE_FRAMES);
+              const speedFactor = Math.max(0.15, Math.pow(progress, 0.75));
+              const driftSpeed = t.speed * speedFactor;
+
+              const moved = t.tryMove(t.slideDir, this.map, allTanks, driftSpeed);
+              anyPlayerMoving = true;
+              if (!moved) {
+                t.slideTimer = 0;
+              }
             }
           }
 

@@ -124,7 +124,9 @@
     FRIENDLY_STUN: 180,           // 3s stun if shot by teammate
     SPAWN_ANIM: 56,               // ~0.93s twinkle before tank spawns
     STAGE_CLEAR_DELAY: 160,       // ~2.6s wait after last enemy dies
-    ICE_SLIDE_FRAMES: 34,         // ~0.56s inertia slide on ice
+    ICE_SLIDE_FRAMES: 45,         // ~0.75s inertia slide on ice (stopping inertia)
+    ICE_TURN_DELAY: 18,           // ~0.30s steering latency & drift inertia for 90-degree turns (~1 tank length)
+    ICE_REVERSE_DELAY: 26,        // ~0.43s skid delay & opposing inertia for 180-degree U-turns (~1.4 tank lengths)
   };
 
   // Exact Eagle Base coordinates (sub-tile grid 26x26)
@@ -463,13 +465,30 @@
     },
   };
 
-  const VALID_SKINS = new Set(['classic', 'genshin', 'cyberpunk', 'wwii', 'metalslug', 'modern', 'wartable']);
+  const SKINS_LIST = ['genshin', 'cyberpunk', 'wwii', 'metalslug', 'modern', 'wartable', 'classic'];
+  BC.SKINS_LIST = SKINS_LIST;
+  const VALID_SKINS = new Set(SKINS_LIST);
+
+  function getRandomSkin(excludeSkin) {
+    const pool = excludeSkin ? SKINS_LIST.filter((s) => s !== excludeSkin) : SKINS_LIST;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  let currentSkinMode = 'genshin';
 
   function loadInitialSkin() {
     try {
       const saved = global.localStorage && global.localStorage.getItem(SKIN_STORAGE_KEY);
-      if (VALID_SKINS.has(saved)) return saved;
+      if (saved === 'random') {
+        currentSkinMode = 'random';
+        return getRandomSkin();
+      }
+      if (VALID_SKINS.has(saved)) {
+        currentSkinMode = saved;
+        return saved;
+      }
     } catch (_) {}
+    currentSkinMode = 'genshin';
     return 'genshin';
   }
 
@@ -480,18 +499,49 @@
     return BC.SKIN;
   };
 
-  BC.setSkin = function (skin) {
+  BC.getSkinMode = function () {
+    return currentSkinMode;
+  };
+
+  BC.isRandomSkin = function () {
+    return currentSkinMode === 'random';
+  };
+
+  BC._applySkin = function (skin) {
     if (!VALID_SKINS.has(skin)) return;
     BC.SKIN = skin;
     BC.COLORS = BC.THEMES[skin];
     if (BC.SKIN_SPRITES && BC.SKIN_SPRITES[skin]) {
       BC.SPRITES = BC.SKIN_SPRITES[skin];
     }
+  };
+
+  BC.randomizeSkin = function () {
+    const nextSkin = getRandomSkin(BC.SKIN);
+    BC._applySkin(nextSkin);
+    return nextSkin;
+  };
+
+  BC.setSkin = function (skinOrMode) {
+    if (skinOrMode === 'random') {
+      currentSkinMode = 'random';
+      try {
+        if (global.localStorage) {
+          global.localStorage.setItem(SKIN_STORAGE_KEY, 'random');
+        }
+      } catch (_) {}
+      return BC.randomizeSkin();
+    }
+
+    if (!VALID_SKINS.has(skinOrMode)) return;
+    currentSkinMode = skinOrMode;
+    BC._applySkin(skinOrMode);
     try {
       if (global.localStorage) {
-        global.localStorage.setItem(SKIN_STORAGE_KEY, skin);
+        global.localStorage.setItem(SKIN_STORAGE_KEY, skinOrMode);
       }
     } catch (_) {}
+    return skinOrMode;
   };
 
   // Authentic 1985 Famicom ROM Enemy Spawn Sequences ($E4EC EntityTypeTable + $E578 StageEnemyCountTable)

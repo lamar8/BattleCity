@@ -339,6 +339,8 @@
       this.stunTimer = 0;
       this.slideTimer = 0;
       this.slideDir = this.dir;
+      this.iceTurnDelay = 0;
+      this.iceTurnTargetDir = null;
 
       this.treadFrame = 0;
       this.moveTick = 0;
@@ -359,8 +361,8 @@
       this.power = spec.power;
     }
 
-    // Attempt movement in direction with authentic 8px corner snapping
-    tryMove(dir, map, allTanks) {
+    // Attempt movement in direction with authentic 8px corner snapping (supports custom drift speed for ice inertia)
+    tryMove(dir, map, allTanks, customSpeed = null) {
       if (!this.alive || this.stunTimer > 0) return false;
 
       const oldDir = this.dir;
@@ -385,9 +387,10 @@
         }
       }
 
+      const effectiveSpeed = (customSpeed !== null && customSpeed !== undefined) ? customSpeed : this.speed;
       const vec = BC.DIR_VEC[dir];
-      const nx = this.x + vec.x * this.speed;
-      const ny = this.y + vec.y * this.speed;
+      const nx = this.x + vec.x * effectiveSpeed;
+      const ny = this.y + vec.y * effectiveSpeed;
 
       this.isMoving = true;
       this.moveTick++;
@@ -403,8 +406,8 @@
 
       // Fractional sub-step nudge so tank closes right up to wall cleanly even at speed < 1
       for (const frac of [0.75, 0.5, 0.25]) {
-        const tx = this.x + vec.x * this.speed * frac;
-        const ty = this.y + vec.y * this.speed * frac;
+        const tx = this.x + vec.x * effectiveSpeed * frac;
+        const ty = this.y + vec.y * effectiveSpeed * frac;
         if (!this._blockedAt(tx, ty, map, allTanks)) {
           this.x = tx;
           this.y = ty;

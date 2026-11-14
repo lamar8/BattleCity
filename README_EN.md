@@ -21,7 +21,7 @@ This project requires **zero external build tools, zero package dependencies, an
 - **Signature Physics & Controls**:
   - **8px Corner Snapping**: Faithful corner alignment when turning at intersections for smooth corridor navigation without getting stuck.
   - **Quadrant-Level Brick Destruction**: 4-bit sub-tile masks (TL/TR/BL/BR) with 10px bullet lateral footprint for authentic dual-brick breaching, and 3-star steel penetration.
-  - **Multi-Point Ice Sliding**: Realistic inertia sliding across ice patches with multi-contact boundary sampling for smooth deceleration when exiting ice.
+  - **Multi-Point Ice Sliding & Damped Deceleration**: Realistic inertia sliding across ice patches with multi-contact boundary sampling, **smooth time-damped friction deceleration upon release (natural convergence from fast to stop)**, authentic steering latency, and turning drift / 180° reverse skidding without wall entrapment.
   - **Bullet-vs-Bullet Collisions**: Head-on opposing bullet collisions cancel each other out with micro-explosion animations and metallic clangs.
   - **Complete 6 Power-Up Types**: Helmet shield, Clock enemy freeze, Shovel eagle fortress (with anti-entrapment checks), Star weapon upgrades, Grenade screen bomb (with bonus tank prize protection), and Tank extra life.
   - **Authentic 2P Mechanics & Borrowing Lives**: Friendly fire stunning (3s duration), end-of-stage Tally Score breakdown, 1,000 PTS bonus, and classic life-borrowing from teammate when eliminated.
