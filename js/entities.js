@@ -7,6 +7,13 @@
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
   }
 
+  const NUDGE_FRACS = Object.freeze([0.75, 0.5, 0.25]);
+
+  const HIT_RESULT_EAGLE = Object.freeze({ type: 'eagle' });
+  const HIT_RESULT_STEEL_CLANG = Object.freeze({ type: 'steel_clang' });
+  const HIT_RESULT_STEEL_BROKEN = Object.freeze({ type: 'steel_broken' });
+  const HIT_RESULT_BRICK = Object.freeze({ type: 'brick' });
+
   // =========================================================================
   // MapGrid (26 x 26 sub-tiles of 8x8 px, with 4x4 brick quadrant masks)
   // =========================================================================
@@ -15,6 +22,10 @@
       this.tiles = [];
       this.brickMasks = [];
       this.eagleAlive = true;
+
+      // Reusable hit detection array to avoid per-bullet heap allocations
+      this._hitTiles = [];
+
       this.load(initialGrid);
     }
 
@@ -139,9 +150,9 @@
           if (this.tiles[ty][tx] === BC.TILE.EAGLE) {
             if (this.eagleAlive) {
               this.eagleAlive = false;
-              return { type: 'eagle' };
+              return HIT_RESULT_EAGLE;
             }
-            return { type: 'steel_clang' };
+            return HIT_RESULT_STEEL_CLANG;
           }
         }
       }
@@ -155,7 +166,8 @@
       let brokeSteel = false;
       let hitSteel = false;
 
-      const hitTiles = [];
+      const hitTiles = this._hitTiles;
+      hitTiles.length = 0;
       for (let ty = minTY; ty <= maxTY; ty++) {
         for (let tx = minTX; tx <= maxTX; tx++) {
           const t = this.tiles[ty][tx];
@@ -232,10 +244,10 @@
         }
       }
 
-      if (brokeSteel) return { type: 'steel_broken' };
-      if (hitSteel && !hitBrick) return { type: 'steel_clang' };
-      if (hitBrick) return { type: 'brick' };
-      if (hitSteel) return { type: 'steel_clang' };
+      if (brokeSteel) return HIT_RESULT_STEEL_BROKEN;
+      if (hitSteel && !hitBrick) return HIT_RESULT_STEEL_CLANG;
+      if (hitBrick) return HIT_RESULT_BRICK;
+      if (hitSteel) return HIT_RESULT_STEEL_CLANG;
       return null;
     }
 
@@ -405,7 +417,7 @@
       }
 
       // Fractional sub-step nudge so tank closes right up to wall cleanly even at speed < 1
-      for (const frac of [0.75, 0.5, 0.25]) {
+      for (const frac of NUDGE_FRACS) {
         const tx = this.x + vec.x * effectiveSpeed * frac;
         const ty = this.y + vec.y * effectiveSpeed * frac;
         if (!this._blockedAt(tx, ty, map, allTanks)) {

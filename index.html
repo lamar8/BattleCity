@@ -209,6 +209,8 @@
       syncSkinUI();
       populateStages();
 
+      // Restore persisted settings
+      speedSelect.value = String(game.speedScale);
       starRateSelect.value = String(game.starRate);
       bulletSpeedSelect.value = String(BC.BASIC_BULLET_SPEED);
 
@@ -291,20 +293,48 @@
       });
 
       let muted = false;
+      try {
+        if (window.localStorage && window.localStorage.getItem('battle_city_muted_v1') === 'true') {
+          muted = true;
+          BC.Audio.setMuted(true);
+          btnMute.textContent = '音效: 关';
+          btnMute.classList.add('active');
+        }
+      } catch (_) {}
+
       btnMute.addEventListener('click', () => {
         muted = !muted;
         BC.Audio.setMuted(muted);
         btnMute.textContent = muted ? '音效: 关' : '音效: 开';
         btnMute.classList.toggle('active', muted);
+        try {
+          if (window.localStorage) {
+            window.localStorage.setItem('battle_city_muted_v1', String(muted));
+          }
+        } catch (_) {}
         btnMute.blur();
       });
 
       let crtOn = false;
+      try {
+        if (window.localStorage && window.localStorage.getItem('battle_city_crt_v1') === 'true') {
+          crtOn = true;
+          screenWrap.classList.add('crt-on');
+          btnCrt.textContent = 'CRT: 开';
+          btnCrt.classList.add('active');
+        }
+      } catch (_) {}
+
       btnCrt.addEventListener('click', () => {
         crtOn = !crtOn;
         screenWrap.classList.toggle('crt-on', crtOn);
         btnCrt.textContent = crtOn ? 'CRT: 开' : 'CRT: 关';
         btnCrt.classList.toggle('active', crtOn);
+        try {
+          if (window.localStorage) {
+            window.localStorage.setItem('battle_city_crt_v1', String(crtOn));
+          }
+        } catch (_) {}
         btnCrt.blur();
       });
 

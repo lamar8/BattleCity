@@ -1050,9 +1050,9 @@
     return cache;
   }
 
-  // Register all 4 Realistic Skins (all sharing unified 7-phase Battle City explosion grammar)
-  BC.registerSkin('wwii', buildWWIISprites(), drawWWIITankHD);
-  BC.registerSkin('metalslug', buildMetalSlugSprites(), drawMetalSlugTankHD);
-  BC.registerSkin('modern', buildModernSprites(), drawModernTankHD);
-  BC.registerSkin('wartable', buildWarTableSprites(), drawWarTableTankHD);
+  // Register all 4 Realistic Skins lazily (compiled on-demand when selected)
+  BC.registerSkin('wwii', buildWWIISprites, drawWWIITankHD);
+  BC.registerSkin('metalslug', buildMetalSlugSprites, drawMetalSlugTankHD);
+  BC.registerSkin('modern', buildModernSprites, drawModernTankHD);
+  BC.registerSkin('wartable', buildWarTableSprites, drawWarTableTankHD);
 })(window);

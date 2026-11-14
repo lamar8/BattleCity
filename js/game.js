@@ -4,6 +4,36 @@
   const BC = (global.BattleCity = global.BattleCity || {});
 
   const HI_SCORE_KEY = 'battle_city_hi_score_v1';
+  const SPEED_STORAGE_KEY = 'battle_city_speed_v1';
+
+  // Constant direction arrays to avoid allocating per-call
+  const ALL_DIRS = Object.freeze([0, 1, 2, 3]);
+  const OTHER_DIRS_TABLE = Object.freeze([
+    Object.freeze([1, 2, 3]), // d !== 0
+    Object.freeze([0, 2, 3]), // d !== 1
+    Object.freeze([0, 1, 3]), // d !== 2
+    Object.freeze([0, 1, 2]), // d !== 3
+  ]);
+
+  const PREVENT_DEFAULT_KEYS = new Set([
+    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    'Space', 'Enter', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
+    'KeyJ', 'KeyK', 'KeyZ', 'KeyP', 'Escape',
+    'Slash', 'KeyL', 'KeyC', 'Numpad0', 'Numpad1', 'ShiftRight',
+  ]);
+
+  function compactAlive(arr) {
+    let writeIdx = 0;
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i].alive) {
+        if (writeIdx !== i) {
+          arr[writeIdx] = arr[i];
+        }
+        writeIdx++;
+      }
+    }
+    arr.length = writeIdx;
+  }
 
   const STATE = {
     TITLE: 'TITLE',
@@ -25,7 +55,7 @@
 
       this.state = STATE.TITLE;
       this.globalFrame = 0;
-      this.speedScale = 1.0;
+      this.speedScale = this._loadSpeedScale();
       this.starRate = this._loadStarRate();
 
       // Persistent High Score (NES default starts at 20000)
@@ -90,6 +120,14 @@
       this._notifyUI();
     }
 
+    _loadSpeedScale() {
+      try {
+        const v = parseFloat(global.localStorage.getItem(SPEED_STORAGE_KEY));
+        if (Number.isFinite(v) && v >= 0.5 && v <= 1.5) return v;
+      } catch (_) {}
+      return 1.0;
+    }
+
     _loadStarRate() {
       try {
         const v = parseFloat(global.localStorage.getItem('battle_city_star_rate_v1'));
@@ -124,14 +162,7 @@
       global.addEventListener('keydown', (e) => {
         BC.Audio.unlock();
         const code = e.code;
-        if (
-          [
-            'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-            'Space', 'Enter', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
-            'KeyJ', 'KeyK', 'KeyZ', 'KeyP', 'Escape',
-            'Slash', 'KeyL', 'KeyC', 'Numpad0', 'Numpad1', 'ShiftRight',
-          ].includes(code)
-        ) {
+        if (PREVENT_DEFAULT_KEYS.has(code)) {
           e.preventDefault();
         }
         if (!this.keysDown.has(code)) {
@@ -239,6 +270,11 @@
 
     setSpeedScale(scale) {
       this.speedScale = Math.max(0.5, Math.min(1.5, Number(scale) || 1.0));
+      try {
+        if (global.localStorage) {
+          global.localStorage.setItem(SPEED_STORAGE_KEY, String(this.speedScale));
+        }
+      } catch (_) {}
     }
 
     setStarRate(rate) {
@@ -788,9 +824,14 @@
 
       // 4. Enemy Spawner
       const maxConcurrent = this.isTwoPlayer ? 6 : 4;
-      const activeEnemyCount =
-        this.enemies.filter((e) => e.alive).length +
-        this.spawnStars.filter((s) => !s.isPlayer && s.alive).length;
+      let activeEnemyCount = 0;
+      for (let i = 0; i < this.enemies.length; i++) {
+        if (this.enemies[i].alive) activeEnemyCount++;
+      }
+      for (let i = 0; i < this.spawnStars.length; i++) {
+        const s = this.spawnStars[i];
+        if (!s.isPlayer && s.alive) activeEnemyCount++;
+      }
 
       if (this.enemyQueue.length > 0 && activeEnemyCount < maxConcurrent) {
         this.spawnTimer--;
@@ -836,7 +877,7 @@
           allTanks.push(enemy);
         }
       }
-      this.spawnStars = this.spawnStars.filter((s) => s.alive);
+      compactAlive(this.spawnStars);
 
       // 6. Enemy AI Movement & Firing
       for (const e of this.enemies) {
@@ -883,17 +924,17 @@
           }
         }
       }
-      this.powerUps = this.powerUps.filter((pu) => pu.alive);
+      compactAlive(this.powerUps);
 
       // 9. Explosions & Floating Scores
       for (const ex of this.explosions) ex.update();
-      this.explosions = this.explosions.filter((ex) => ex.alive);
+      compactAlive(this.explosions);
 
       for (const fs of this.floatingScores) fs.update();
-      this.floatingScores = this.floatingScores.filter((fs) => fs.alive);
+      compactAlive(this.floatingScores);
 
       // Clean up dead enemies
-      this.enemies = this.enemies.filter((e) => e.alive);
+      compactAlive(this.enemies);
     }
 
     _checkBorrowLife() {
@@ -1034,10 +1075,18 @@
     }
 
     _chooseEnemyDirection(enemy, allTanks = null) {
-      const otherDirs = [0, 1, 2, 3].filter((d) => d !== enemy.dir);
-      const openDirs = allTanks
-        ? otherDirs.filter((d) => this._canEnemyStep(enemy, d, allTanks))
-        : otherDirs;
+      const otherDirs = OTHER_DIRS_TABLE[enemy.dir] || [0, 1, 2, 3];
+      const openDirs = [];
+      if (allTanks) {
+        for (let i = 0; i < otherDirs.length; i++) {
+          const d = otherDirs[i];
+          if (this._canEnemyStep(enemy, d, allTanks)) openDirs.push(d);
+        }
+      } else {
+        for (let i = 0; i < otherDirs.length; i++) {
+          openDirs.push(otherDirs[i]);
+        }
+      }
 
       // Tactical bias: steer toward Eagle Base (96, 192) or alive player
       const r = Math.random();
@@ -1045,29 +1094,29 @@
       let targetY = 192;
 
       if (r < 0.28) {
-        const aliveP = this.players.find((p) => p.tank && p.tank.alive);
-        if (aliveP) {
-          targetX = aliveP.tank.x;
-          targetY = aliveP.tank.y;
+        for (let i = 0; i < this.players.length; i++) {
+          const p = this.players[i];
+          if (p.tank && p.tank.alive) {
+            targetX = p.tank.x;
+            targetY = p.tank.y;
+            break;
+          }
         }
       }
 
       if (r < 0.72) {
         const dx = targetX - enemy.x;
         const dy = targetY - enemy.y;
-        const candidates = [];
-        if (Math.abs(dy) >= Math.abs(dx)) {
-          candidates.push(dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
-          candidates.push(dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
-        } else {
-          candidates.push(dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
-          candidates.push(dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
-        }
+        const c0 = Math.abs(dy) >= Math.abs(dx)
+          ? (dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP)
+          : (dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
+        const c1 = Math.abs(dy) >= Math.abs(dx)
+          ? (dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT)
+          : (dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
 
         // 1st priority: tactical candidate that is unblocked
-        for (const d of candidates) {
-          if (d !== enemy.dir && openDirs.includes(d)) return d;
-        }
+        if (c0 !== enemy.dir && openDirs.includes(c0)) return c0;
+        if (c1 !== enemy.dir && openDirs.includes(c1)) return c1;
       }
 
       // 2nd priority: any other unblocked direction
@@ -1213,7 +1262,7 @@
         }
       }
 
-      this.bullets = this.bullets.filter((b) => b.alive);
+      compactAlive(this.bullets);
     }
 
     _awardScore(player, pts) {
@@ -1601,16 +1650,37 @@
       ctx.restore();
     }
 
-    _drawCyberBackdrop(ctx, animated = false) {
-      if (typeof ctx.createLinearGradient === 'function') {
-        const bg = ctx.createLinearGradient(0, 0, 0, BC.SCREEN_HEIGHT);
-        bg.addColorStop(0, '#070913');
-        bg.addColorStop(0.55, '#120C28');
-        bg.addColorStop(1, '#09111E');
-        ctx.fillStyle = bg;
-      } else {
-        ctx.fillStyle = BC.COLORS.BLACK;
+    _getBackdropGradient(ctx, skin) {
+      if (!this._backdropGradCache) this._backdropGradCache = new Map();
+      let grad = this._backdropGradCache.get(skin);
+      if (grad) return grad;
+
+      if (typeof ctx.createLinearGradient !== 'function') return null;
+      grad = ctx.createLinearGradient(0, 0, 0, BC.SCREEN_HEIGHT);
+      if (skin === 'cyberpunk') {
+        grad.addColorStop(0, '#070913');
+        grad.addColorStop(0.55, '#120C28');
+        grad.addColorStop(1, '#09111E');
+      } else if (skin === 'genshin') {
+        grad.addColorStop(0, '#0F1626');
+        grad.addColorStop(0.55, '#17223B');
+        grad.addColorStop(1, '#101522');
+      } else if (skin === 'wwii') {
+        grad.addColorStop(0, '#1C1F18'); grad.addColorStop(0.6, '#262920'); grad.addColorStop(1, '#141611');
+      } else if (skin === 'metalslug') {
+        grad.addColorStop(0, '#2E1A18'); grad.addColorStop(0.55, '#241D24'); grad.addColorStop(1, '#141115');
+      } else if (skin === 'modern') {
+        grad.addColorStop(0, '#0C1118'); grad.addColorStop(0.6, '#151E2B'); grad.addColorStop(1, '#0B0E14');
+      } else if (skin === 'wartable') {
+        grad.addColorStop(0, '#2B1D13'); grad.addColorStop(0.5, '#382619'); grad.addColorStop(1, '#1E130B');
       }
+      this._backdropGradCache.set(skin, grad);
+      return grad;
+    }
+
+    _drawCyberBackdrop(ctx, animated = false) {
+      const bg = this._getBackdropGradient(ctx, 'cyberpunk');
+      ctx.fillStyle = bg || BC.COLORS.BLACK;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
 
       if (animated && typeof ctx.beginPath === 'function') {
@@ -1636,15 +1706,8 @@
     }
 
     _drawTeyvatBackdrop(ctx, animatedStars = false) {
-      if (typeof ctx.createLinearGradient === 'function') {
-        const bg = ctx.createLinearGradient(0, 0, 0, BC.SCREEN_HEIGHT);
-        bg.addColorStop(0, '#0F1626');
-        bg.addColorStop(0.55, '#17223B');
-        bg.addColorStop(1, '#101522');
-        ctx.fillStyle = bg;
-      } else {
-        ctx.fillStyle = BC.COLORS.BLACK;
-      }
+      const bg = this._getBackdropGradient(ctx, 'genshin');
+      ctx.fillStyle = bg || BC.COLORS.BLACK;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
 
       if (animatedStars && typeof ctx.beginPath === 'function') {
@@ -1664,21 +1727,8 @@
     }
 
     _drawRealisticBackdrop(ctx, skin, animated = false) {
-      if (typeof ctx.createLinearGradient === 'function') {
-        const bg = ctx.createLinearGradient(0, 0, 0, BC.SCREEN_HEIGHT);
-        if (skin === 'wwii') {
-          bg.addColorStop(0, '#1C1F18'); bg.addColorStop(0.6, '#262920'); bg.addColorStop(1, '#141611');
-        } else if (skin === 'metalslug') {
-          bg.addColorStop(0, '#2E1A18'); bg.addColorStop(0.55, '#241D24'); bg.addColorStop(1, '#141115');
-        } else if (skin === 'modern') {
-          bg.addColorStop(0, '#0C1118'); bg.addColorStop(0.6, '#151E2B'); bg.addColorStop(1, '#0B0E14');
-        } else if (skin === 'wartable') {
-          bg.addColorStop(0, '#2B1D13'); bg.addColorStop(0.5, '#382619'); bg.addColorStop(1, '#1E130B');
-        }
-        ctx.fillStyle = bg;
-      } else {
-        ctx.fillStyle = BC.COLORS.BLACK;
-      }
+      const bg = this._getBackdropGradient(ctx, skin);
+      ctx.fillStyle = bg || BC.COLORS.BLACK;
       ctx.fillRect(0, 0, BC.SCREEN_WIDTH, BC.SCREEN_HEIGHT);
 
       if (animated && skin === 'modern' && typeof ctx.beginPath === 'function') {

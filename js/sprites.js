@@ -1797,39 +1797,64 @@
   }
 
   // Build core sprite libraries once
-  const classicSprites = buildClassicSprites();
-  const genshinSprites = buildGenshinSprites();
-  const cyberpunkSprites = buildCyberpunkSprites();
+    BC.SKIN_SPRITES = BC.SKIN_SPRITES || {};
+    BC._skinLoaders = BC._skinLoaders || {};
 
-  BC.SKIN_SPRITES = {
-    classic: classicSprites,
-    genshin: genshinSprites,
-    cyberpunk: cyberpunkSprites,
-  };
-  BC._tankRenderers = {
-    cyberpunk: drawCyberTankHD,
-    genshin: drawGenshinTankHD,
-  };
-  BC._explosionRenderers = {};
-  BC._gfx = {
-    createCanvas,
-    roundRectPath,
-    octagonPath,
-    drawFourPointStar,
-    buildClassicSprites,
-    buildHDExplosionSet,
-  };
+    BC.registerSkinLoader = function (name, loader) {
+      BC._skinLoaders[name] = loader;
+    };
 
-  BC.registerSkin = function (name, spriteSet, tankFn, explosionFn) {
-    BC.SKIN_SPRITES[name] = spriteSet;
-    if (tankFn) BC._tankRenderers[name] = tankFn;
-    if (explosionFn) BC._explosionRenderers[name] = explosionFn;
-    if (BC.getSkin() === name) {
-      BC.SPRITES = spriteSet;
-    }
-  };
+    BC.ensureSkinSprites = function (skin) {
+      const target = skin || BC.getSkin() || 'classic';
+      if (!BC.SKIN_SPRITES[target]) {
+        if (BC._skinLoaders[target]) {
+          BC.SKIN_SPRITES[target] = BC._skinLoaders[target]();
+        } else if (target === 'classic') {
+          BC.SKIN_SPRITES.classic = buildClassicSprites();
+        } else if (target === 'genshin') {
+          BC.SKIN_SPRITES.genshin = buildGenshinSprites();
+        } else if (target === 'cyberpunk') {
+          BC.SKIN_SPRITES.cyberpunk = buildCyberpunkSprites();
+        } else {
+          BC.ensureSkinSprites('classic');
+          return BC.SKIN_SPRITES.classic;
+        }
+      }
+      return BC.SKIN_SPRITES[target];
+    };
 
-  BC.SPRITES = BC.SKIN_SPRITES[BC.getSkin()] || classicSprites;
+    BC.registerSkinLoader('classic', buildClassicSprites);
+    BC.registerSkinLoader('genshin', buildGenshinSprites);
+    BC.registerSkinLoader('cyberpunk', buildCyberpunkSprites);
+
+    BC._tankRenderers = {
+      cyberpunk: drawCyberTankHD,
+      genshin: drawGenshinTankHD,
+    };
+    BC._explosionRenderers = {};
+    BC._gfx = {
+      createCanvas,
+      roundRectPath,
+      octagonPath,
+      drawFourPointStar,
+      buildClassicSprites,
+      buildHDExplosionSet,
+    };
+
+    BC.registerSkin = function (name, spriteSetOrLoader, tankFn, explosionFn) {
+      if (typeof spriteSetOrLoader === 'function') {
+        BC.registerSkinLoader(name, spriteSetOrLoader);
+      } else {
+        BC.SKIN_SPRITES[name] = spriteSetOrLoader;
+      }
+      if (tankFn) BC._tankRenderers[name] = tankFn;
+      if (explosionFn) BC._explosionRenderers[name] = explosionFn;
+      if (BC.getSkin() === name) {
+        BC.SPRITES = BC.ensureSkinSprites(name);
+      }
+    };
+
+    BC.SPRITES = BC.ensureSkinSprites(BC.getSkin());
 
   const tankCache = new Map();
 
@@ -1874,7 +1899,7 @@
   // Unified Battle City 7-phase ROM Explosion Renderer across all 7 skins
   BC.drawExplosion = function (ctx, cx, cy, frame, isBig) {
     const skin = BC.getSkin();
-    const sprites = BC.SKIN_SPRITES[skin] || BC.SKIN_SPRITES.classic;
+    const sprites = BC.ensureSkinSprites ? BC.ensureSkinSprites(skin) : (BC.SKIN_SPRITES[skin] || BC.SKIN_SPRITES.classic);
     const x = skin === 'classic' ? Math.round(cx) : cx;
     const y = skin === 'classic' ? Math.round(cy) : cy;
 

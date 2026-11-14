@@ -123,6 +123,11 @@
       this.noiseBuffer = null;
       this.channels = [null, null, null, null];
       this.engineActive = false;
+      this.unlocked = false;
+
+      // Track active slots to avoid scanning all 28 slots every frame
+      this.activeSlots = new Set();
+      this._claimed = [false, false, false, false];
 
       this.slots = Array.from({ length: 28 }, () => ({
         active: false,
@@ -169,12 +174,17 @@
         }
       }
       if (this.ctx.state === 'suspended') {
-        this.ctx.resume().catch(() => {});
+        this.ctx.resume().then(() => {
+          this.unlocked = true;
+        }).catch(() => {});
+      } else if (this.ctx.state === 'running') {
+        this.unlocked = true;
       }
       return this.ctx;
     }
 
     unlock() {
+      if (this.unlocked && this.ctx && this.ctx.state === 'running') return;
       this.ensureContext();
     }
 
@@ -267,6 +277,7 @@
 
       const s = this.slots[slotIdx];
       s.active = true;
+      this.activeSlots.add(slotIdx);
       s.seq = seq;
 
       const chSel = seq[0];
@@ -312,11 +323,13 @@
     _stopSlot(slotIdx) {
       if (slotIdx >= 0 && slotIdx < 28) {
         this.slots[slotIdx].active = false;
+        this.activeSlots.delete(slotIdx);
       }
     }
 
     _silenceAllHardware() {
       if (!this.ctx) return;
+      this.activeSlots.clear();
       for (let c = 0; c < 4; c++) {
         if (this.channels[c] && this.channels[c].gain) {
           this.channels[c].gain.gain.setValueAtTime(0, this.ctx.currentTime);
@@ -327,11 +340,15 @@
     // 60Hz NES APU frame tick
     tick() {
       if (!this.ctx || this.ctx.state !== 'running' || this.muted) return;
+      if (this.activeSlots.size === 0) return;
 
       // Pass 1: Process active sequences
-      for (let i = 0; i < 28; i++) {
+      for (const i of this.activeSlots) {
         const s = this.slots[i];
-        if (!s.active) continue;
+        if (!s.active) {
+          this.activeSlots.delete(i);
+          continue;
+        }
 
         if (s.dur > 0) {
           s.dur--;
@@ -365,6 +382,7 @@
             s.durSaved = s.dur;
           } else if (b === 0xe8) {
             s.active = false;
+            this.activeSlots.delete(i);
             break;
           } else if (b === 0xe9) {
             if (s.pos < seq.length) {
@@ -424,7 +442,7 @@
       }
 
       // Tick Hardware Envelopes (~3 quarter-frame clocks per frame)
-      for (let i = 0; i < 28; i++) {
+      for (const i of this.activeSlots) {
         const s = this.slots[i];
         if (!s.active || !s.useEnvelope) continue;
         for (let q = 0; q < 3; q++) {
@@ -444,7 +462,7 @@
       }
 
       // Tick Hardware Sweeps (2 half-frame clocks per frame, pulse only)
-      for (let i = 0; i < 28; i++) {
+      for (const i of this.activeSlots) {
         const s = this.slots[i];
         if (!s.active || !s.sweepEnabled || s.channel >= 2 || s.period <= 0) continue;
         for (let h = 0; h < 2; h++) {
@@ -463,6 +481,7 @@
                 s.needsWrite = true;
               } else if (newPeriod >= 0x800) {
                 s.active = false;
+                this.activeSlots.delete(i);
               }
             }
           }
@@ -470,10 +489,15 @@
       }
 
       // Pass 2: Write winning slot per hardware channel
-      const claimed = [false, false, false, false];
+      const claimed = this._claimed;
+      claimed[0] = false;
+      claimed[1] = false;
+      claimed[2] = false;
+      claimed[3] = false;
       const now = this.ctx.currentTime;
 
       for (let i = 0; i < 28; i++) {
+        if (!this.activeSlots.has(i)) continue;
         const s = this.slots[i];
         if (!s.active) continue;
         const chIdx = s.channel;

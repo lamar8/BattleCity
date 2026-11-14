@@ -172,6 +172,22 @@
     return map[color.toUpperCase()] || color;
   }
 
+  const fontCache = new Map();
+  function getCachedFont(skin, isCyber, pxSize) {
+    const key = skin + '|' + pxSize;
+    let f = fontCache.get(key);
+    if (f) return f;
+    if (isCyber || skin === 'modern') {
+      f = `800 ${pxSize}px "Orbitron", "Bahnschrift", "Consolas", "Microsoft YaHei", sans-serif`;
+    } else if (skin === 'metalslug' || skin === 'wwii') {
+      f = `900 ${pxSize}px "Impact", "Arial Black", "Bahnschrift", "Microsoft YaHei", sans-serif`;
+    } else {
+      f = `700 ${pxSize}px "Georgia", "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif`;
+    }
+    fontCache.set(key, f);
+    return f;
+  }
+
   // =========================================================================
   // UNIFIED SKIN-AWARE EXPORTS
   // =========================================================================
@@ -200,13 +216,7 @@
     ctx.scale(1 / S, 1 / S);
 
     const pxSize = Math.round(sizeLogical * S);
-    if (isCyber || skin === 'modern') {
-      ctx.font = `800 ${pxSize}px "Orbitron", "Bahnschrift", "Consolas", "Microsoft YaHei", sans-serif`;
-    } else if (skin === 'metalslug' || skin === 'wwii') {
-      ctx.font = `900 ${pxSize}px "Impact", "Arial Black", "Bahnschrift", "Microsoft YaHei", sans-serif`;
-    } else {
-      ctx.font = `700 ${pxSize}px "Georgia", "Noto Serif SC", "Songti SC", "Microsoft YaHei", serif`;
-    }
+    ctx.font = getCachedFont(skin, isCyber, pxSize);
     ctx.textBaseline = 'top';
     ctx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
 
