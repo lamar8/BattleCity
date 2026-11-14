@@ -24,7 +24,9 @@ This project requires **zero external build tools, zero package dependencies, an
   - **Multi-Point Ice Sliding**: Realistic inertia sliding across ice patches with multi-contact boundary sampling for smooth deceleration when exiting ice.
   - **Bullet-vs-Bullet Collisions**: Head-on opposing bullet collisions cancel each other out with micro-explosion animations and metallic clangs.
   - **Complete 6 Power-Up Types**: Helmet shield, Clock enemy freeze, Shovel eagle fortress (with anti-entrapment checks), Star weapon upgrades, Grenade screen bomb (with bonus tank prize protection), and Tank extra life.
-  - **Authentic 2P Mechanics**: Friendly fire stunning (3s duration), end-of-stage Tally Score breakdown, and 1,000 PTS bonus for the top-scoring player.
+  - **Authentic 2P Mechanics & Borrowing Lives**: Friendly fire stunning (3s duration), end-of-stage Tally Score breakdown, 1,000 PTS bonus, and classic life-borrowing from teammate when eliminated.
+  - **Stage-to-Stage Life Continuity**: Remaining lives and tank upgrade tiers now carry over across stages rather than resetting to 3 each round.
+  - **Teammate Life Borrowing**: In 2P mode, if a player is eliminated with 0 lives, they can borrow a spare life from their teammate (if teammate total lives ≥ 2) by pressing their fire key or A+B.
 
 ### 2. Hardware-Accurate NES 2A03 APU Synthesizer
 - **Zero External Audio Assets**: All music, sound effects, and ambient noises are dynamically synthesized via the Web Audio API—no `.mp3` or `.wav` files required.
@@ -68,10 +70,12 @@ Switch instantly between 7 visual aesthetics with 4x supersampled vector graphic
 | **Return to Menu** | `Escape` / Top bar Menu button | Top bar Menu button |
 
 #### Two Players (2P)
-| Player | Movement | Fire Key |
-| :--- | :--- | :--- |
-| **1P (Gold / Green)** | `W` `A` `S` `D` | `Space` / `J` / `F` / `G` |
-| **2P (Forest Green)** | `↑` `↓` `←` `→` Arrow Keys | `K` / `L` / Numpad `0` `1` / `Slash` (`/`) / `ShiftRight` |
+| Player | Movement | Fire Key | Borrow Life Key (When Teammate Lives ≥ 2) |
+| :--- | :--- | :--- | :--- |
+| **1P (Gold / Green)** | `W` `A` `S` `D` | `Space` / `J` / `F` / `G` | `J` / `Space` / `B` / `A+B` |
+| **2P (Forest Green)** | `↑` `↓` `←` `→` Arrow Keys | `K` / `L` / Numpad `0` `1` / `Slash` (`/`) / `ShiftRight` | `K` / Numpad `0` / `Enter` / `A+B` |
+
+> 💡 **Borrowing Rules**: In 2P mode, if one player is destroyed and out of lives (0 lives), as long as the teammate has spare lives (total lives ≥ 2, spare counter ≥ 1), pressing their action/fire key will borrow 1 life from the teammate and instantly respawn at their spawn point with a shield! The teammate's spare lives decrease by 1. A player cannot borrow if the teammate is down to their last tank (lives = 1).
 
 #### Map Editor (CONSTRUCTION)
 | Action | Method |

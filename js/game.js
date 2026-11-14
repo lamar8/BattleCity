@@ -441,23 +441,28 @@
       this.paused = false;
       this.gameOverAfterTally = false;
 
-      // Reset per-stage kills & reset each player to 3 lives at stage start
+      // Reset per-stage kills; preserve remaining lives across stages (no reset to 3)
+      if (!this.players || this.players.length === 0) {
+        this._initPlayers();
+      }
+
       for (const p of this.players) {
-        p.lives = 3;
         p.kills = [0, 0, 0, 0];
         p.tank = null;
         p.pendingStar = null;
         p.respawnTimer = 0;
-        const sp = BC.PLAYER_SPAWNS[p.index];
-        p.tank = new BC.Tank({
-          isPlayer: true,
-          playerIndex: p.index,
-          x: sp.x,
-          y: sp.y,
-          dir: BC.DIR.UP,
-          tier: p.tier,
-          shieldTimer: BC.FRAMES.SPAWN_SHIELD_PLAYER,
-        });
+        if (p.lives > 0) {
+          const sp = BC.PLAYER_SPAWNS[p.index];
+          p.tank = new BC.Tank({
+            isPlayer: true,
+            playerIndex: p.index,
+            x: sp.x,
+            y: sp.y,
+            dir: BC.DIR.UP,
+            tier: p.tier,
+            shieldTimer: BC.FRAMES.SPAWN_SHIELD_PLAYER,
+          });
+        }
       }
       this._notifyUI();
     }
@@ -551,6 +556,10 @@
       }
 
       // 3. Player Respawns & Controls
+      if (allowPlayerControl && this.state === STATE.PLAYING && this.isTwoPlayer && this.players.length >= 2) {
+        this._checkBorrowLife();
+      }
+
       let anyPlayerActive = false;
       let anyPlayerMoving = false;
 
@@ -570,9 +579,11 @@
               });
               p.pendingStar = null;
             }
-          } else if (p.lives > 0) {
-            p.respawnTimer--;
-            if (p.respawnTimer <= 0) {
+          } else {
+            if (p.respawnTimer > 0) {
+              p.respawnTimer--;
+            }
+            if (p.lives > 0 && p.respawnTimer <= 0) {
               const sp = BC.PLAYER_SPAWNS[p.index];
               p.pendingStar = new BC.SpawnStar({
                 x: sp.x,
@@ -748,6 +759,69 @@
 
       // Clean up dead enemies
       this.enemies = this.enemies.filter((e) => e.alive);
+    }
+
+    _checkBorrowLife() {
+      for (const p of this.players) {
+        // Can only borrow if completely dead: 0 lives, no active tank, no spawn star, explosion finished
+        if (p.lives > 0) continue;
+        if (p.tank && p.tank.alive) continue;
+        if (p.pendingStar && p.pendingStar.alive) continue;
+        if (p.respawnTimer > 0) continue;
+
+        const teammate = this.players[1 - p.index];
+        // Teammate must have at least 2 lives (1 active/last life + at least 1 spare to lend)
+        if (!teammate || teammate.lives < 2) continue;
+
+        let wantsBorrow = false;
+        if (p.index === 0) {
+          // 1P borrow input: Fire keys (Space, J, F, G, Z), B key, touch fire, or holding A+B
+          const justPressed =
+            this._justPressed('Space', 'KeyJ', 'KeyF', 'KeyG', 'KeyZ', 'KeyB') ||
+            this.touchState.fire;
+          const comboHeld =
+            ((this._isHeld('KeyJ') || this._isHeld('Space')) &&
+              (this._isHeld('KeyK') || this._isHeld('KeyB') || this._isHeld('KeyZ'))) ||
+            (this._isHeld('KeyA') && this._isHeld('KeyB'));
+          wantsBorrow = justPressed || comboHeld;
+        } else {
+          // 2P borrow input: Fire keys (K, L, Numpad0, Numpad1, Slash, ShiftRight, Enter, NumpadEnter), or holding combo
+          const justPressed = this._justPressed(
+            'KeyK',
+            'KeyL',
+            'Numpad0',
+            'Numpad1',
+            'Slash',
+            'ShiftRight',
+            'Enter',
+            'NumpadEnter'
+          );
+          const comboHeld =
+            (this._isHeld('KeyK') || this._isHeld('Numpad0')) &&
+            (this._isHeld('KeyL') || this._isHeld('Numpad1') || this._isHeld('Enter'));
+          wantsBorrow = justPressed || comboHeld;
+        }
+
+        if (wantsBorrow) {
+          teammate.lives--;
+          p.lives = 1;
+          p.tier = 0;
+          p.respawnTimer = 0;
+
+          const sp = BC.PLAYER_SPAWNS[p.index];
+          p.pendingStar = new BC.SpawnStar({
+            x: sp.x,
+            y: sp.y,
+            isPlayer: true,
+            playerIndex: p.index,
+            tier: p.tier,
+          });
+          this.spawnStars.push(p.pendingStar);
+          this.floatingScores.push(new BC.FloatingScore(sp.x + 8, sp.y + 8, '1UP'));
+          BC.Audio.playLifeUp();
+          this._notifyUI();
+        }
+      }
     }
 
     _readPlayerControls(playerIndex) {
@@ -1522,17 +1596,29 @@
       }
 
       // 2. Player 1 Lives ("IP" + mini tank + spare lives)
-      const p1Spare = Math.max(0, (this.players[0] ? this.players[0].lives - 1 : 0));
+      const p1 = this.players[0];
+      const p1Spare = Math.max(0, p1 ? p1.lives - 1 : 0);
+      const p1CanBorrow = this.isTwoPlayer && p1 && p1.lives <= 0 && this.players[1] && this.players[1].lives >= 2;
+      const p1Blink = p1CanBorrow ? Math.floor(this.globalFrame / 15) % 2 === 0 : true;
+
       BC.drawText(ctx, 'IP', hx, 128, '#000000');
-      ctx.drawImage(BC.SPRITES.hudLife, hx, 136, 8, 8);
-      BC.drawText(ctx, String(p1Spare), hx + 9, 136, '#000000');
+      if (p1Blink) {
+        ctx.drawImage(BC.SPRITES.hudLife, hx, 136, 8, 8);
+        BC.drawText(ctx, String(p1Spare), hx + 9, 136, '#000000');
+      }
 
       // 3. Player 2 Lives (if 2P)
       if (this.isTwoPlayer && this.players[1]) {
-        const p2Spare = Math.max(0, this.players[1].lives - 1);
+        const p2 = this.players[1];
+        const p2Spare = Math.max(0, p2.lives - 1);
+        const p2CanBorrow = p2.lives <= 0 && p1 && p1.lives >= 2;
+        const p2Blink = p2CanBorrow ? Math.floor(this.globalFrame / 15) % 2 === 0 : true;
+
         BC.drawText(ctx, 'IIP', hx - 4, 152, '#000000');
-        ctx.drawImage(BC.SPRITES.hudLife, hx, 160, 8, 8);
-        BC.drawText(ctx, String(p2Spare), hx + 9, 160, '#000000');
+        if (p2Blink) {
+          ctx.drawImage(BC.SPRITES.hudLife, hx, 160, 8, 8);
+          BC.drawText(ctx, String(p2Spare), hx + 9, 160, '#000000');
+        }
       }
 
       // 4. Stage Flag & Stage Number
