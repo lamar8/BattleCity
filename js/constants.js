@@ -544,6 +544,40 @@
     return skinOrMode;
   };
 
+  // =========================================================================
+  // 108 关终极通关奖励：随机抽取小学语数外三门课的一张试卷（固定展示）
+  // =========================================================================
+  BC.VICTORY_REWARDS = [
+    {
+      id: 'chinese',
+      nameCn: '小学语文试卷',
+      nameEn: 'Primary School Chinese Exam Paper',
+      noticeCn: '恭喜通关！特批奖励：小学语文试卷一张',
+      noticeEn: 'Clear Reward: One Primary School Chinese Exam Paper',
+      icon: '📖',
+    },
+    {
+      id: 'math',
+      nameCn: '小学数学试卷',
+      nameEn: 'Primary School Math Exam Paper',
+      noticeCn: '恭喜通关！特批奖励：小学数学试卷一张',
+      noticeEn: 'Clear Reward: One Primary School Math Exam Paper',
+      icon: '📐',
+    },
+    {
+      id: 'english',
+      nameCn: '小学英语试卷',
+      nameEn: 'Primary School English Exam Paper',
+      noticeCn: '恭喜通关！特批奖励：小学英语试卷一张',
+      noticeEn: 'Clear Reward: One Primary School English Exam Paper',
+      icon: '📝',
+    },
+  ];
+
+  BC.getRandomVictoryReward = function () {
+    return BC.VICTORY_REWARDS[Math.floor(Math.random() * BC.VICTORY_REWARDS.length)] || BC.VICTORY_REWARDS[0];
+  };
+
   // Authentic 1985 Famicom ROM Enemy Spawn Sequences ($E4EC EntityTypeTable + $E578 StageEnemyCountTable)
   // 0 = BASIC, 1 = FAST, 2 = POWER, 3 = ARMOR (exact 20-tank order per stage)
   BC.ROM_ENEMY_WAVES = [

@@ -104,6 +104,9 @@
     EAGLE_ALARM: 18,
     TALLY_TICK: 19,
     TALLY_TICK2: 20,
+    HI_SCORE1: 21,
+    HI_SCORE2: 22,
+    HI_SCORE3: 23,
     GAME_OVER1: 24,
     GAME_OVER2: 25,
     GAME_OVER3: 26,
@@ -573,6 +576,17 @@
 
     playBonus() {
       this._playSlot(SND.TALLY_DONE);
+    }
+
+    playVictoryFanfare() {
+      this._stopSlot(SND.BGM_SQ1);
+      this._stopSlot(SND.BGM_TRI);
+      this._stopSlot(SND.BGM_SQ2);
+      this._stopSlot(SND.TANK_ENGINE);
+      this.engineActive = false;
+      this._playSlot(SND.HI_SCORE1);
+      this._playSlot(SND.HI_SCORE2);
+      this._playSlot(SND.HI_SCORE3);
     }
 
     playGameOver() {

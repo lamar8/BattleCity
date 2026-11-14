@@ -28,6 +28,7 @@
         <div class="stage-jump">
           <select id="stage-select" aria-label="选择关卡"></select>
           <button id="btn-jump" type="button" title="跳转到所选关卡">跳关</button>
+          <button id="btn-victory-demo" type="button" title="点击立即演示最终通关动画与随机小学试卷大奖通知">通关大奖</button>
         </div>
         <select id="speed-select" aria-label="游戏速度" title="调节游戏整体节奏">
           <option value="0.75">速度: 0.75x</option>
@@ -60,6 +61,34 @@
       <div id="screen-wrap" class="screen-wrap">
         <canvas id="game-canvas" width="1024" height="960"></canvas>
         <div class="crt-overlay" aria-hidden="true"></div>
+
+        <!-- 最终通关通知卡片 (极简街机风格，中英双语试卷奖励通知) -->
+        <div id="victory-modal" class="victory-modal" style="display: none;" aria-hidden="true">
+          <div class="victory-card">
+            <div class="victory-header">
+              <span class="victory-tag">★ CLEAR REWARD ★</span>
+              <h2 class="victory-title">通关奖励</h2>
+            </div>
+
+            <div class="victory-item">
+              <span class="victory-icon" id="modal-reward-icon">📖</span>
+              <div class="victory-item-text">
+                <div class="reward-main-cn" id="modal-reward-main-cn">小学语文试卷（一张）</div>
+                <div class="reward-main-en" id="modal-reward-main-en">One Primary School Chinese Exam Paper</div>
+              </div>
+            </div>
+
+            <div class="victory-notice" id="modal-reward-notice">
+              恭喜通关！特批奖励：小学语文试卷一张
+              <br>
+              <small>Congratulations! Clear Reward: One Chinese Exam Paper</small>
+            </div>
+
+            <div class="victory-actions">
+              <button id="btn-victory-close" type="button" class="vbtn vbtn-primary">确定 (OK)</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -121,6 +150,7 @@
       const starRateSelect = document.getElementById('star-rate-select');
       const bulletSpeedSelect = document.getElementById('bullet-speed-select');
       const btnJump = document.getElementById('btn-jump');
+      const btnVictoryDemo = document.getElementById('btn-victory-demo');
       const btnPause = document.getElementById('btn-pause');
       const btnTitle = document.getElementById('btn-title');
       const btnMute = document.getElementById('btn-mute');
@@ -128,6 +158,23 @@
       const btnPad = document.getElementById('btn-pad');
       const screenWrap = document.getElementById('screen-wrap');
       const touchPad = document.getElementById('touch-pad');
+
+      const victoryModal = document.getElementById('victory-modal');
+      const btnVictoryClose = document.getElementById('btn-victory-close');
+      const modalRewardIcon = document.getElementById('modal-reward-icon');
+      const modalRewardMainCn = document.getElementById('modal-reward-main-cn');
+      const modalRewardMainEn = document.getElementById('modal-reward-main-en');
+      const modalRewardNotice = document.getElementById('modal-reward-notice');
+
+      function updateVictoryModal(reward) {
+        if (!reward) return;
+        if (modalRewardIcon) modalRewardIcon.textContent = reward.icon || '📖';
+        if (modalRewardMainCn) modalRewardMainCn.textContent = `${reward.nameCn}（一张）`;
+        if (modalRewardMainEn) modalRewardMainEn.textContent = `One ${reward.nameEn}`;
+        if (modalRewardNotice) {
+          modalRewardNotice.innerHTML = `${reward.noticeCn}<br><small style="opacity: 0.8; font-size: 8.5px;">${reward.noticeEn}</small>`;
+        }
+      }
 
       let lastCustomState = null;
       function populateStages() {
@@ -189,7 +236,36 @@
         btnPause.textContent = info.paused ? '继续' : '暂停';
         btnPause.classList.toggle('active', !!info.paused);
         syncSkinUI();
+
+        if (info.state === 'VICTORY' && info.victoryReward) {
+          updateVictoryModal(info.victoryReward);
+          if (victoryModal) {
+            victoryModal.style.display = 'flex';
+            victoryModal.setAttribute('aria-hidden', 'false');
+          }
+        } else if (info.state !== 'VICTORY') {
+          if (victoryModal) {
+            victoryModal.style.display = 'none';
+            victoryModal.setAttribute('aria-hidden', 'true');
+          }
+        }
       };
+
+      if (btnVictoryDemo) {
+        btnVictoryDemo.addEventListener('click', () => {
+          game.triggerVictory();
+          btnVictoryDemo.blur();
+        });
+      }
+
+      if (btnVictoryClose) {
+        btnVictoryClose.addEventListener('click', () => {
+          if (victoryModal) {
+            victoryModal.style.display = 'none';
+            victoryModal.setAttribute('aria-hidden', 'true');
+          }
+        });
+      }
 
       stageSelect.addEventListener('change', () => stageSelect.blur());
 

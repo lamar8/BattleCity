@@ -13,6 +13,7 @@
     GAME_OVER_FALL: 'GAME_OVER_FALL',
     TALLY: 'TALLY',
     GAME_OVER_SCREEN: 'GAME_OVER_SCREEN',
+    VICTORY: 'VICTORY',
     EDITOR: 'EDITOR',
   };
 
@@ -30,6 +31,11 @@
       // Persistent High Score (NES default starts at 20000)
       this.hiScore = this._loadHiScore();
       this.lastP1Score = 0;
+
+      // Victory state
+      this.victoryTimer = 0;
+      this.victoryFireworks = [];
+      this.currentVictoryReward = null;
 
       // Menu / Transition state
       this.menuIndex = 0; // 0 = 1P, 1 = 2P, 2 = CONSTRUCTION
@@ -216,6 +222,9 @@
       this.state = STATE.TITLE;
       this.titleSlideY = 0;
       this.paused = false;
+      this.victoryTimer = 0;
+      this.victoryFireworks = [];
+      this.currentVictoryReward = null;
       this._notifyUI();
     }
 
@@ -269,6 +278,7 @@
           paused: this.paused,
           isTwoPlayer: this.isTwoPlayer,
           hasCustom: BC.hasCustomStage(),
+          victoryReward: this.currentVictoryReward,
         });
       }
     }
@@ -300,6 +310,9 @@
           break;
         case STATE.GAME_OVER_SCREEN:
           this._updateGameOverScreen();
+          break;
+        case STATE.VICTORY:
+          this._updateVictory();
           break;
         case STATE.EDITOR:
           this._updateEditor();
@@ -1347,16 +1360,19 @@
         }
 
         this.tallyDoneWait++;
-        if ((skip && this.tallyDoneWait > 15) || this.tallyDoneWait >= 130) {
+        if (this.tallyDoneWait >= 130 || (skip && this.tallyDoneWait > 15)) {
           if (this.gameOverAfterTally) {
             this.state = STATE.GAME_OVER_SCREEN;
             this.gameOverScreenTimer = 175;
             BC.Audio.playGameOver();
             this._notifyUI();
           } else {
-            this.stage =
-              this.stage >= BC.TOTAL_CLASSIC_STAGES ? 1 : this.stage + 1;
-            this._enterStageSelect(false);
+            if (this.stage >= BC.TOTAL_CLASSIC_STAGES) {
+              this._enterVictoryScreen();
+            } else {
+              this.stage = this.stage + 1;
+              this._enterStageSelect(false);
+            }
           }
         }
       }
@@ -1373,6 +1389,150 @@
       ) {
         this.returnToTitle();
       }
+    }
+
+    // =======================================================================
+    // FINAL VICTORY SCREEN & VIRTUAL REWARD ANNOUNCEMENT
+    // =======================================================================
+    _enterVictoryScreen() {
+      BC.Audio.updateEngine(false, false);
+      this.state = STATE.VICTORY;
+      this.victoryTimer = 0;
+      this.victoryFireworks = [];
+      this.currentVictoryReward = BC.getRandomVictoryReward();
+      BC.Audio.playVictoryFanfare();
+      this._notifyUI();
+    }
+
+    triggerVictory() {
+      BC.Audio.unlock();
+      this._enterVictoryScreen();
+    }
+
+    _spawnFirework() {
+      const cx = 24 + Math.random() * (BC.SCREEN_WIDTH - 48);
+      const cy = 20 + Math.random() * 85;
+      const palette = [
+        '#FFD700', '#FF3B30', '#00F0FF', '#34C759',
+        '#AF52DE', '#FF9500', '#FCFCFC', '#FF2D55',
+        '#FFE894', '#70D6FF', '#FF70A6', '#70E000'
+      ];
+      const color = palette[Math.floor(Math.random() * palette.length)];
+      const count = 30 + Math.floor(Math.random() * 18);
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
+        const speed = 0.7 + Math.random() * 2.1;
+        this.victoryFireworks.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1,
+          decay: 0.013 + Math.random() * 0.014,
+          size: 1.2 + Math.random() * 1.5,
+          color: color,
+        });
+      }
+    }
+
+    _updateVictory() {
+      this.victoryTimer++;
+
+      if (this._justPressed('Escape')) {
+        this.returnToTitle();
+        return;
+      }
+
+      // Periodically spawn celebration fireworks & fanfare ticks
+      if (this.victoryTimer % 18 === 0) {
+        this._spawnFirework();
+        if (Math.random() < 0.45) {
+          BC.Audio.playBonus();
+        }
+      }
+
+      // Update fireworks particles
+      for (const p of this.victoryFireworks) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.035;
+        p.vx *= 0.985;
+        p.vy *= 0.985;
+        p.alpha -= p.decay;
+      }
+      this.victoryFireworks = this.victoryFireworks.filter((p) => p.alpha > 0);
+    }
+
+    _renderVictory(ctx) {
+      const isHD = BC.getSkin() !== 'classic';
+      this._renderBackdrop(ctx, true);
+
+      // 1. Festive Fireworks
+      for (const p of this.victoryFireworks) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+        ctx.restore();
+      }
+
+      // 2. Victory Banners
+      BC.drawBrickWord(ctx, 'VICTORY', 128, 14, 4, false);
+
+      const goldColor = isHD ? '#FFE894' : '#FCFCFC';
+      BC.drawText(ctx, 'STAGE 108 ALL CLEARED!', 128, 48, goldColor, 'center', isHD ? 8.5 : 7.5);
+      BC.drawText(ctx, 'ALL-STAGE GRAND CHAMPION!', 128, 59, '#FCFCFC', 'center');
+
+      // 3. Golden Trophy Cup in center
+      const trophyY = 70;
+      ctx.fillStyle = '#FFE894';
+      ctx.fillRect(118, trophyY, 20, 14); // bowl
+      ctx.fillRect(114, trophyY + 2, 4, 8); // handle L
+      ctx.fillRect(138, trophyY + 2, 4, 8); // handle R
+      ctx.fillRect(126, trophyY + 14, 4, 6); // stem
+      ctx.fillRect(120, trophyY + 20, 16, 4); // base
+      if (Math.floor(this.globalFrame / 6) % 2 === 0) {
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillRect(122, trophyY + 3, 3, 3);
+        ctx.fillRect(133, trophyY + 7, 2, 2);
+      }
+
+      // 4. Honor Podium with Tanks
+      ctx.fillStyle = isHD ? '#252F42' : '#7C7C7C';
+      ctx.fillRect(64, 122, 128, 22);
+      ctx.fillStyle = isHD ? '#D6A754' : '#FCFCFC';
+      ctx.fillRect(64, 120, 128, 2);
+
+      const tread = Math.floor(this.globalFrame / 4) % 2;
+      const t1Sprite = BC.getTankSprite('P0', 'P1', BC.DIR.UP, tread);
+      if (this.isTwoPlayer && this.players[1]) {
+        const t2Sprite = BC.getTankSprite('P1', 'P2', BC.DIR.UP, tread);
+        ctx.drawImage(t1Sprite, 100, 104, 16, 16);
+        ctx.drawImage(t2Sprite, 140, 104, 16, 16);
+      } else {
+        ctx.drawImage(t1Sprite, 120, 104, 16, 16);
+      }
+
+      const starBob = Math.sin(this.globalFrame * 0.1) * 2;
+      BC.drawText(ctx, '★ 1P ★', this.isTwoPlayer ? 108 : 128, 92 + starBob, '#FFD700', 'center');
+      if (this.isTwoPlayer && this.players[1]) {
+        BC.drawText(ctx, '★ 2P ★', 148, 92 + starBob, '#34C759', 'center');
+      }
+
+      // 5. Virtual Reward Announcement Card on Canvas (Clean & Authentic FC / HD Arcade Style)
+      const reward = this.currentVictoryReward || BC.VICTORY_REWARDS[0];
+      const cardBg = isHD ? 'rgba(15, 23, 42, 0.88)' : '#000000';
+      ctx.fillStyle = cardBg;
+      ctx.fillRect(20, 146, 216, 78);
+      ctx.strokeStyle = isHD ? '#FFE894' : '#D82800';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(20, 146, 216, 78);
+
+      BC.drawText(ctx, `REWARD: ${reward.nameEn.toUpperCase()}`, 128, 154, '#FFE894', 'center');
+      BC.drawText(ctx, `通关奖励：${reward.nameCn}（一张）`, 128, 168, '#FCFCFC', 'center');
+      BC.drawText(ctx, reward.noticeCn, 128, 184, '#FFAA55', 'center');
+      BC.drawText(ctx, reward.noticeEn, 128, 196, '#A0AEC0', 'center');
+      BC.drawText(ctx, '按 ESC 键返回主菜单 / PRESS ESC', 128, 212, isHD ? '#FCE4A0' : '#FCFCFC', 'center');
     }
 
     // =======================================================================
@@ -1432,6 +1592,8 @@
         this._renderTally(ctx);
       } else if (this.state === STATE.GAME_OVER_SCREEN) {
         this._renderGameOverScreen(ctx);
+      } else if (this.state === STATE.VICTORY) {
+        this._renderVictory(ctx);
       } else if (this.state === STATE.EDITOR) {
         this.editor.draw(ctx);
       }
