@@ -118,6 +118,42 @@
       return false;
     }
 
+    // Probes solid terrain type for tactical AI decisions (NONE, BRICK, STEEL, WATER, EAGLE)
+    probeRect(x, y, w, h) {
+      const S = BC.SUBTILE_SIZE;
+      const minTX = Math.max(0, Math.floor(x / S));
+      const maxTX = Math.min(BC.GRID_SUBTILES - 1, Math.floor((x + w - 0.001) / S));
+      const minTY = Math.max(0, Math.floor(y / S));
+      const maxTY = Math.min(BC.GRID_SUBTILES - 1, Math.floor((y + h - 0.001) / S));
+
+      let hasBrick = false;
+      for (let ty = minTY; ty <= maxTY; ty++) {
+        for (let tx = minTX; tx <= maxTX; tx++) {
+          const t = this.tiles[ty][tx];
+          if (t === BC.TILE.EMPTY || t === BC.TILE.FOREST || t === BC.TILE.ICE) continue;
+          if (t === BC.TILE.EAGLE) return 'EAGLE';
+          if (t === BC.TILE.STEEL) return 'STEEL';
+          if (t === BC.TILE.WATER) return 'WATER';
+          if (t === BC.TILE.BRICK) {
+            const mask = this.brickMasks[ty][tx];
+            if (mask === 0) continue;
+            const px = tx * S;
+            const py = ty * S;
+            if (
+              mask === BC.BRICK_FULL ||
+              ((mask & 1) && rectsOverlap(x, y, w, h, px, py, 4, 4)) ||
+              ((mask & 2) && rectsOverlap(x, y, w, h, px + 4, py, 4, 4)) ||
+              ((mask & 4) && rectsOverlap(x, y, w, h, px, py + 4, 4, 4)) ||
+              ((mask & 8) && rectsOverlap(x, y, w, h, px + 4, py + 4, 4, 4))
+            ) {
+              hasBrick = true;
+            }
+          }
+        }
+      }
+      return hasBrick ? 'BRICK' : 'NONE';
+    }
+
     // Apply bullet impact on terrain.
     // Returns null if no solid hit, or { type: 'brick' | 'steel_clang' | 'steel_broken' | 'eagle' }
     hitByBullet(bullet) {
@@ -362,6 +398,8 @@
       this.burstTimer = 0;
       this.aiTurnCooldown = 0;
       this.flashTick = 0;
+      this.breachAttempts = 0;
+      this.escapedFromDir = null;
     }
 
     applyTier(tier) {
@@ -459,6 +497,29 @@
         }
       }
       return false;
+    }
+
+    // Inspects upcoming obstacle type along direction (NONE, BRICK, STEEL, WATER, EAGLE, BORDER, TANK)
+    // Supports 8px corner-snapping alignment probe for lateral 90-degree turns
+    getObstacleInDirection(dir, map, allTanks, dist = 4) {
+      const isHorizontal = dir === BC.DIR.LEFT || dir === BC.DIR.RIGHT;
+      const probeX = isHorizontal ? this.x : Math.round(this.x / 8) * 8;
+      const probeY = !isHorizontal ? this.y : Math.round(this.y / 8) * 8;
+
+      const vec = BC.DIR_VEC[dir];
+      const nx = probeX + vec.x * dist;
+      const ny = probeY + vec.y * dist;
+
+      if (nx < 0 || ny < 0 || nx + this.w > BC.FIELD_SIZE || ny + this.h > BC.FIELD_SIZE) {
+        return 'BORDER';
+      }
+      for (const other of allTanks) {
+        if (!other.alive || other.id === this.id) continue;
+        if (rectsOverlap(nx, ny, this.w, this.h, other.x, other.y, other.w, other.h)) {
+          return 'TANK';
+        }
+      }
+      return map.probeRect(nx, ny, this.w, this.h);
     }
 
     countActiveBullets(activeBullets) {

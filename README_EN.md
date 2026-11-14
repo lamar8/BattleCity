@@ -25,6 +25,10 @@ This project requires **zero external build tools, zero package dependencies, an
   - **Bullet-vs-Bullet Collisions**: Head-on opposing bullet collisions cancel each other out with micro-explosion animations and metallic clangs.
   - **Complete 6 Power-Up Types**: Helmet shield, Clock enemy freeze, Shovel eagle fortress (with anti-entrapment checks), Star weapon upgrades, Grenade screen bomb (with bonus tank prize protection), and Tank extra life.
   - **Authentic 2P Mechanics & Borrowing Lives**: Friendly fire stunning (3s duration), end-of-stage Tally Score breakdown, 1,000 PTS bonus, and classic life-borrowing from teammate when eliminated.
+  - **Authentic NES Enemy Tactical AI & Eagle Hunting**:
+    - **Breach & Clear Behavior**: Enemies advancing southward no longer flee at the sight of brick walls; they aggressively blast through destructible barriers and march straight through the newly opened breach toward the Eagle Base.
+    - **Line-of-Sight Corridor Sniping**: When aligned with the Eagle's vertical column while facing down, enemies drastically accelerate their fire cadence, launching lethal sustained barrages.
+    - **Differentiated Archetypes**: Fast Tanks prioritize blitzing the base from flanks, Power and Armor Tanks spearhead frontal demolition, while Basic Tanks engage in defensive harassment.
   - **Stage-to-Stage Life Continuity**: Remaining lives and tank upgrade tiers now carry over across stages rather than resetting to 3 each round.
   - **Teammate Life Borrowing**: In 2P mode, if a player is eliminated with 0 lives, they can borrow a spare life from their teammate (if teammate total lives ≥ 2) by pressing their fire key or A+B.
   - **Final Stage 108 Victory Celebration & Clear Reward**:

@@ -899,7 +899,7 @@
       }
       compactAlive(this.spawnStars);
 
-      // 6. Enemy AI Movement & Firing
+      // 6. Enemy AI Movement & Firing (Authentic 1985 NES Battle City AI Strategy)
       for (const e of this.enemies) {
         if (!e.alive) continue;
         if (this.freezeTimer > 0) continue;
@@ -908,23 +908,66 @@
 
         const moved = e.tryMove(e.dir, this.map, allTanks);
         if (!moved) {
-          e.dir = this._chooseEnemyDirection(e, allTanks);
-          e.aiTurnCooldown = 10;
-        } else if (
-          e.aiTurnCooldown <= 0 &&
-          Math.abs(e.x - Math.round(e.x / 16) * 16) < 0.6 &&
-          Math.abs(e.y - Math.round(e.y / 16) * 16) < 0.6 &&
-          Math.random() < 0.045
-        ) {
-          e.dir = this._chooseEnemyDirection(e, allTanks);
-          e.aiTurnCooldown = 32 + Math.floor(Math.random() * 16);
+          // Probe what obstacle is in front
+          const obs = e.getObstacleInDirection(e.dir, this.map, allTanks, 4);
+          const isHeadingSouth = e.dir === BC.DIR.DOWN && e.y < 184;
+          const isBreachableBrick = obs === 'BRICK';
+
+          // Authentic FC Behavior: When blocked by destructible brick along tactical attack path,
+          // do NOT flee immediately! Fire to blast through the bricks and march forward.
+          const wantBreach = isBreachableBrick && (e.breachAttempts > 0 || isHeadingSouth || Math.random() < 0.60);
+
+          if (wantBreach && e.breachAttempts < 3) {
+            // Maintain current direction and blast the brick wall
+            if (e.canFire(this.bullets)) {
+              e.breachAttempts++;
+              this.bullets.push(e.createBullet());
+              e.shootCooldown = 16 + Math.floor(Math.random() * 10);
+            }
+            e.aiTurnCooldown = 22; // Keep heading and wait for shells to pulverize the obstacle
+          } else {
+            // Blocked by indestructible obstacle (Steel/Water/Border/Tank) or breach limit reached:
+            // Abandon and execute a lateral 90-degree turn to bypass the obstacle!
+            e.breachAttempts = 0;
+            e.dir = this._chooseEnemyDirection(e, allTanks);
+            e.aiTurnCooldown = 14;
+          }
+        } else {
+          // Movement succeeded (open lane or freshly blasted breach)
+          e.breachAttempts = 0;
+
+          // Corner turn check at 16px grid intersections:
+          // If already advancing southward toward Eagle Base, maintain momentum without frivolous turns!
+          if (
+            e.aiTurnCooldown <= 0 &&
+            Math.abs(e.x - Math.round(e.x / 16) * 16) < 0.6 &&
+            Math.abs(e.y - Math.round(e.y / 16) * 16) < 0.6
+          ) {
+            const isChargingEagle = e.dir === BC.DIR.DOWN && Math.abs(e.x - 96) <= 24;
+            const turnChance = isChargingEagle ? 0.015 : 0.055;
+            if (Math.random() < turnChance) {
+              e.dir = this._chooseEnemyDirection(e, allTanks);
+              e.aiTurnCooldown = 28 + Math.floor(Math.random() * 16);
+            }
+          }
         }
 
-        // Fire decision
+        // Fire decision (Authentic 3-channel trigger: Corridor Sniper, Breaching, or Patrol)
         if (e.canFire(this.bullets)) {
-          const chance = e.dir === BC.DIR.DOWN ? 0.025 : 0.014;
-          if (!moved || Math.random() < chance) {
+          // Channel 1: Eagle Base Line-of-Sight Sniping (X in 84..124, facing DOWN)
+          const inEagleCorridor = e.dir === BC.DIR.DOWN && e.x >= 84 && e.x <= 124 && e.y < 184;
+
+          // Channel 2: Active brick breaching
+          const isBreaching = e.breachAttempts > 0;
+
+          // Channel 3: Patrol fire
+          const patrolChance = e.dir === BC.DIR.DOWN ? 0.03 : 0.016;
+
+          if (inEagleCorridor || isBreaching || Math.random() < patrolChance) {
             this.bullets.push(e.createBullet());
+            e.shootCooldown = inEagleCorridor
+              ? 14 + Math.floor(Math.random() * 10)
+              : 22 + Math.floor(Math.random() * 20);
           }
         }
       }
@@ -1095,61 +1138,147 @@
     }
 
     _chooseEnemyDirection(enemy, allTanks = null) {
-      const otherDirs = OTHER_DIRS_TABLE[enemy.dir] || [0, 1, 2, 3];
-      const openDirs = [];
-      if (allTanks) {
-        for (let i = 0; i < otherDirs.length; i++) {
-          const d = otherDirs[i];
-          if (this._canEnemyStep(enemy, d, allTanks)) openDirs.push(d);
-        }
-      } else {
-        for (let i = 0; i < otherDirs.length; i++) {
-          openDirs.push(otherDirs[i]);
-        }
-      }
-
-      // Tactical bias: steer toward Eagle Base (96, 192) or alive player
+      // 1. Determine target according to authentic FC archetypes
+      // Type 1 (Fast / HQ Hunter): 80% Eagle, 10% Player, 10% Wander
+      // Type 2 (Power / Demolition): 75% Eagle, 15% Player, 10% Wander
+      // Type 3 (Armor / Heavy Siege): 70% Eagle, 15% Player, 15% Wander
+      // Type 0 (Basic / Patrol): 45% Eagle, 25% Player, 30% Wander
       const r = Math.random();
       let targetX = 96;
       let targetY = 192;
+      let isHunting = true;
 
-      if (r < 0.28) {
+      const type = enemy.enemyType || 0;
+      let eagleWeight = 0.45;
+      let playerWeight = 0.25;
+      if (type === 1) { eagleWeight = 0.80; playerWeight = 0.10; }
+      else if (type === 2) { eagleWeight = 0.75; playerWeight = 0.15; }
+      else if (type === 3) { eagleWeight = 0.70; playerWeight = 0.15; }
+
+      if (r < eagleWeight) {
+        // Target: Eagle Base
+        targetX = 96;
+        targetY = 192;
+      } else if (r < eagleWeight + playerWeight) {
+        // Target: Nearest active player
+        let found = false;
+        let bestDist2 = Infinity;
         for (let i = 0; i < this.players.length; i++) {
           const p = this.players[i];
           if (p.tank && p.tank.alive) {
-            targetX = p.tank.x;
-            targetY = p.tank.y;
-            break;
+            const d2 = Math.hypot(p.tank.x - enemy.x, p.tank.y - enemy.y);
+            if (d2 < bestDist2) {
+              bestDist2 = d2;
+              targetX = p.tank.x;
+              targetY = p.tank.y;
+              found = true;
+            }
           }
+        }
+        if (!found) {
+          targetX = 96;
+          targetY = 192;
+        }
+      } else {
+        // Wander / Patrol mode
+        isHunting = false;
+      }
+
+      // 2. Identify candidate directions and 90-degree lateral side directions
+      const currentDir = enemy.dir;
+      const sideDirs = [(currentDir + 1) % 4, (currentDir + 3) % 4];
+      const reverseDir = (currentDir + 2) % 4;
+
+      const dx = targetX - enemy.x;
+      const dy = targetY - enemy.y;
+      const primaryDir = Math.abs(dy) >= Math.abs(dx)
+        ? (dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP)
+        : (dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
+      const secondaryDir = Math.abs(dy) >= Math.abs(dx)
+        ? (dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT)
+        : (dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
+
+      // 3. Probe all 4 directions for obstacle types with corner-snapping alignment
+      const dirs = [0, 1, 2, 3];
+      const openDirs = [];
+      const brickDirs = [];
+
+      for (let i = 0; i < dirs.length; i++) {
+        const d = dirs[i];
+        const obs = enemy.getObstacleInDirection(d, this.map, allTanks || [], 4);
+        if (obs === 'NONE') {
+          openDirs.push(d);
+        } else if (obs === 'BRICK') {
+          brickDirs.push(d);
         }
       }
 
-      if (r < 0.72) {
-        const dx = targetX - enemy.x;
-        const dy = targetY - enemy.y;
-        const c0 = Math.abs(dy) >= Math.abs(dx)
-          ? (dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP)
-          : (dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT);
-        const c1 = Math.abs(dy) >= Math.abs(dx)
-          ? (dx >= 0 ? BC.DIR.RIGHT : BC.DIR.LEFT)
-          : (dy >= 0 ? BC.DIR.DOWN : BC.DIR.UP);
-
-        // 1st priority: tactical candidate that is unblocked
-        if (c0 !== enemy.dir && openDirs.includes(c0)) return c0;
-        if (c1 !== enemy.dir && openDirs.includes(c1)) return c1;
+      // Sort lateral side directions by proximity to target
+      function sortBestSides(sidesList) {
+        if (sidesList.length <= 1) return sidesList.slice();
+        const d0 = sidesList[0];
+        const d1 = sidesList[1];
+        const v0 = BC.DIR_VEC[d0];
+        const v1 = BC.DIR_VEC[d1];
+        const dist0 = Math.hypot(targetX - (enemy.x + v0.x * 16), targetY - (enemy.y + v0.y * 16));
+        const dist1 = Math.hypot(targetX - (enemy.x + v1.x * 16), targetY - (enemy.y + v1.y * 16));
+        return dist0 <= dist1 ? [d0, d1] : [d1, d0];
       }
 
-      // 2nd priority: any other unblocked direction
+      const openSides = sideDirs.filter((d) => openDirs.includes(d));
+      const sortedOpenSides = sortBestSides(openSides);
+      const brickSides = sideDirs.filter((d) => brickDirs.includes(d));
+      const sortedBrickSides = sortBestSides(brickSides);
+      const reverseOpen = openDirs.includes(reverseDir);
+
+      // Dead-end escape guard: if just reversed out of a dead-end, DO NOT turn 180 back into it!
+      const isEscaping = enemy.escapedFromDir !== null && enemy.escapedFromDir !== undefined;
+
+      // 4. Direction selection hierarchy (Strictly prioritizing 90-degree lateral turns over 180 reverses!):
+      // Priority 1: Primary hunting direction is wide open
+      if (isHunting && openDirs.includes(primaryDir) && (!isEscaping || primaryDir !== enemy.escapedFromDir)) {
+        enemy.escapedFromDir = null;
+        return primaryDir;
+      }
+
+      // Priority 2: 90-degree lateral side turn into an open corridor (横向拐弯第一优先级)
+      if (sortedOpenSides.length > 0) {
+        enemy.escapedFromDir = null;
+        return sortedOpenSides[0];
+      }
+
+      // Priority 3: Secondary hunting direction is open
+      if (isHunting && openDirs.includes(secondaryDir) && (!isEscaping || secondaryDir !== enemy.escapedFromDir)) {
+        enemy.escapedFromDir = null;
+        return secondaryDir;
+      }
+
+      // Priority 4: Heading towards Eagle (DOWN) has destructible bricks in front (Breach Path!)
+      if (isHunting && primaryDir === BC.DIR.DOWN && brickDirs.includes(BC.DIR.DOWN)) {
+        return BC.DIR.DOWN;
+      }
+
+      // Priority 5: 90-degree lateral side turn into destructible bricks (横向开火破拆迂回)
+      if (sortedBrickSides.length > 0) {
+        enemy.escapedFromDir = null;
+        return sortedBrickSides[0];
+      }
+
+      // Priority 6: 180-degree U-turn ONLY as last resort when both left and right sides are blocked!
+      if (reverseOpen && !isEscaping) {
+        enemy.escapedFromDir = currentDir; // Record that we had to reverse out of currentDir dead-end
+        return reverseDir;
+      }
+
+      // Priority 7: Any other open direction
       if (openDirs.length > 0) {
+        enemy.escapedFromDir = null;
         return openDirs[Math.floor(Math.random() * openDirs.length)];
       }
 
-      // Fallback if all 3 alternatives are blocked: reverse or random
-      const reverseDir = (enemy.dir + 2) % 4;
-      if (allTanks && this._canEnemyStep(enemy, reverseDir, allTanks)) {
-        return reverseDir;
-      }
-      return otherDirs[Math.floor(Math.random() * otherDirs.length)];
+      // Final fallback
+      enemy.escapedFromDir = null;
+      return reverseDir;
     }
 
     _updateBullets() {
