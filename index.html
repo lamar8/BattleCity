@@ -27,6 +27,7 @@
         </select>
         <div class="stage-jump">
           <select id="stage-select" aria-label="选择关卡"></select>
+          <button id="btn-restart" type="button" title="重新开始当前选中的关卡">重新开始</button>
           <button id="btn-victory-demo" type="button" title="点击立即演示最终通关动画与随机小学试卷大奖通知">通关大奖</button>
         </div>
         <select id="speed-select" aria-label="游戏速度" title="调节游戏整体节奏">
@@ -161,6 +162,7 @@
 
       const skinSelect = document.getElementById('skin-select');
       const stageSelect = document.getElementById('stage-select');
+      const btnRestart = document.getElementById('btn-restart');
       const speedSelect = document.getElementById('speed-select');
       const starRateSelect = document.getElementById('star-rate-select');
       const bulletSpeedSelect = document.getElementById('bullet-speed-select');
@@ -290,10 +292,19 @@
         });
       }
 
-      stageSelect.addEventListener('change', () => {
+      function jumpToSelectedStage() {
         const s = parseInt(stageSelect.value, 10) || 1;
         game.jumpToStage(s, game.isTwoPlayer);
+      }
+
+      stageSelect.addEventListener('change', () => {
+        jumpToSelectedStage();
         stageSelect.blur();
+      });
+
+      btnRestart.addEventListener('click', () => {
+        jumpToSelectedStage();
+        btnRestart.blur();
       });
 
       speedSelect.addEventListener('change', () => {
