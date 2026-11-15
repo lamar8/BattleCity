@@ -24,13 +24,13 @@ This project requires **zero external build tools, zero package dependencies, an
   - **Multi-Point Ice Sliding & Damped Deceleration**: Realistic inertia sliding across ice patches with multi-contact boundary sampling, **smooth time-damped friction deceleration upon release (natural convergence from fast to stop)**, authentic steering latency, and turning drift / 180° reverse skidding without wall entrapment.
   - **Bullet-vs-Bullet Collisions**: Head-on opposing bullet collisions cancel each other out with micro-explosion animations and metallic clangs.
   - **Complete 6 Power-Up Types**: Helmet shield, Clock enemy freeze, Shovel eagle fortress (with anti-entrapment checks), Star weapon upgrades, Grenade screen bomb (with bonus tank prize protection), and Tank extra life.
-  - **Authentic 2P Mechanics & Borrowing Lives**: Friendly fire stunning (3s duration), end-of-stage Tally Score breakdown, 1,000 PTS bonus, and classic life-borrowing from teammate when eliminated.
+  - **2P / 3P Local Co-op Mechanics**: Friendly fire stunning (3s duration), end-of-stage Tally Score breakdown, a 1,000 PTS sole-leader bonus, and life-borrowing from any teammate with a spare life. In 3P mode, Player 3 spawns directly above the Eagle.
   - **Authentic NES Enemy Tactical AI & Eagle Hunting**:
     - **Breach & Clear Behavior**: Enemies advancing southward no longer flee at the sight of brick walls; they aggressively blast through destructible barriers and march straight through the newly opened breach toward the Eagle Base.
     - **Line-of-Sight Corridor Sniping**: When aligned with the Eagle's vertical column while facing down, enemies drastically accelerate their fire cadence, launching lethal sustained barrages.
     - **Differentiated Archetypes**: Fast Tanks prioritize blitzing the base from flanks, Power and Armor Tanks spearhead frontal demolition, while Basic Tanks engage in defensive harassment.
   - **Stage-to-Stage Life Continuity**: Remaining lives and tank upgrade tiers now carry over across stages rather than resetting to 3 each round.
-  - **Teammate Life Borrowing**: In 2P mode, if a player is eliminated with 0 lives, they can borrow a spare life from their teammate (if teammate total lives ≥ 2) by pressing their fire key or A+B.
+  - **Teammate Life Borrowing**: In 2P / 3P mode, if a player is eliminated with 0 lives, they can borrow a spare life from any teammate whose total lives are ≥ 2 by pressing their fire key or A+B.
   - **Final Stage 108 Victory Celebration & Clear Reward**:
     - **Full-Screen Victory Spectacle**: Beating all 108 stages triggers the grand victory sequence featuring NES 2A03 victory fanfare, 60FPS particle fireworks, podium tank honors, and celebratory trophies.
     - **Random Primary School Exam Paper Clear Prize**: Bilingual pop-up humorously grants the player a clear reward randomly picked from 【Primary School Chinese Exam Paper】, 【Primary School Math Exam Paper】, or 【Primary School English Exam Paper】 ("Did you finish your homework, Commander?"). A "通关大奖" preview button is available in the top bar.
@@ -82,7 +82,14 @@ Switch instantly between 7 visual aesthetics with 4x supersampled vector graphic
 | **1P (Gold / Green)** | `W` `A` `S` `D` | `Space` / `J` / `F` / `G` | `J` / `Space` / `B` / `A+B` |
 | **2P (Forest Green)** | `↑` `↓` `←` `→` Arrow Keys | `K` / `L` / Numpad `0` `1` / `Slash` (`/`) / `ShiftRight` | `K` / Numpad `0` / `Enter` / `A+B` |
 
-> 💡 **Borrowing Rules**: In 2P mode, if one player is destroyed and out of lives (0 lives), as long as the teammate has spare lives (total lives ≥ 2, spare counter ≥ 1), pressing their action/fire key will borrow 1 life from the teammate and instantly respawn at their spawn point with a shield! The teammate's spare lives decrease by 1. A player cannot borrow if the teammate is down to their last tank (lives = 1).
+#### Three Players (3P)
+| Player | Movement | Fire Key | Spawn Point |
+| :--- | :--- | :--- | :--- |
+| **1P (Gold)** | `W` `A` `S` `D` | `Space` / `J` / `F` / `G` | Lower-left of the Eagle |
+| **2P (Forest Green)** | `↑` `↓` `←` `→` Arrow Keys | `K` / `L` / Numpad `0` `1` / `Slash` (`/`) / `ShiftRight` | Lower-right of the Eagle |
+| **3P (Blue)** | Numpad `8` `5` `4` `6` | Numpad `-` (Subtract) | **Directly above the Eagle, outside the fortress top wall** |
+
+> 💡 **Borrowing Rules**: In 2P / 3P mode, if one player is destroyed and out of lives (0 lives), as long as any teammate has spare lives (total lives ≥ 2, spare counter ≥ 1), pressing their action/fire key will borrow 1 life from that teammate and instantly respawn at their spawn point with a shield! The lending teammate's spare lives decrease by 1. A player cannot borrow if every teammate is down to their last tank (lives = 1).
 
 #### Map Editor (CONSTRUCTION)
 | Action | Method |

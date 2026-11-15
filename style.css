@@ -136,6 +136,11 @@ button:disabled:hover {
   color: #94f878;
 }
 
+#btn-life-p3:not(:disabled) {
+  border-color: #367fb8;
+  color: #7cd8fc;
+}
+
 .screen-bezel {
   position: relative;
   padding: 12px;

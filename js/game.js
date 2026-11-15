@@ -20,6 +20,7 @@
     'Space', 'Enter', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
     'KeyJ', 'KeyK', 'KeyZ', 'KeyP', 'Escape',
     'Slash', 'KeyL', 'KeyC', 'Numpad0', 'Numpad1', 'ShiftRight',
+    'Numpad4', 'Numpad5', 'Numpad6', 'Numpad8', 'NumpadEnter', 'NumpadSubtract',
   ]);
 
   function compactAlive(arr) {
@@ -68,9 +69,12 @@
       this.currentVictoryReward = null;
 
       // Menu / Transition state
-      this.menuIndex = 0; // 0 = 1P, 1 = 2P, 2 = CONSTRUCTION
+      this.menuIndex = 0; // 0 = 1P, 1 = 1P + AI, 2 = 2P, 3 = 3P, 4 = CONSTRUCTION
       this.titleSlideY = 240;
       this.isTwoPlayer = false;
+      this.isThreePlayer = false;
+      this.isAllyAI = false;
+      this.allyAI = new BC.AllyAI();
       this.stage = 1;
       this.canBrowseStage = false;
       this.curtainProgress = 0; // 0 = open, 120 = closed
@@ -242,6 +246,10 @@
       BC.Audio.unlock();
       if (twoPlayer !== null) {
         this.isTwoPlayer = twoPlayer;
+        if (!twoPlayer) {
+          this.isAllyAI = false;
+          this.isThreePlayer = false;
+        }
       }
       this._initPlayers();
       this.stage = Math.max(1, Math.min(BC.TOTAL_CLASSIC_STAGES + (BC.hasCustomStage() ? 1 : 0), stageNum));
@@ -276,7 +284,7 @@
         (this.state === STATE.TALLY && !this.gameOverAfterTally);
       return isActiveRun &&
         !!this.players[playerIndex] &&
-        (playerIndex === 0 || (playerIndex === 1 && this.isTwoPlayer));
+        (playerIndex === 0 || this.isTwoPlayer);
     }
 
     addLife(playerIndex) {
@@ -333,6 +341,8 @@
           stage: this.stage,
           paused: this.paused,
           isTwoPlayer: this.isTwoPlayer,
+          isThreePlayer: this.isThreePlayer,
+          isAllyAI: this.isAllyAI,
           hasCustom: BC.hasCustomStage(),
           victoryReward: this.currentVictoryReward,
         });
@@ -394,14 +404,16 @@
       }
 
       if (this._justPressed('ArrowUp', 'KeyW')) {
-        this.menuIndex = (this.menuIndex + 2) % 3;
+        this.menuIndex = (this.menuIndex + 4) % 5;
         BC.Audio.playScoreTick();
       } else if (this._justPressed('ArrowDown', 'KeyS')) {
-        this.menuIndex = (this.menuIndex + 1) % 3;
+        this.menuIndex = (this.menuIndex + 1) % 5;
         BC.Audio.playScoreTick();
       } else if (this._justPressed('Enter', 'Space', 'KeyJ', 'KeyZ')) {
-        if (this.menuIndex === 0 || this.menuIndex === 1) {
-          this.isTwoPlayer = this.menuIndex === 1;
+        if (this.menuIndex <= 3) {
+          this.isAllyAI = this.menuIndex === 1;
+          this.isThreePlayer = this.menuIndex === 3;
+          this.isTwoPlayer = this.menuIndex >= 1;
           this.stage = 1;
           this._initPlayers();
           this._enterStageSelect(true);
@@ -414,7 +426,7 @@
     }
 
     _initPlayers() {
-      const count = this.isTwoPlayer ? 2 : 1;
+      const count = this.isThreePlayer ? 3 : (this.isTwoPlayer ? 2 : 1);
       this.players = [];
       for (let i = 0; i < count; i++) {
         this.players.push({
@@ -695,7 +707,9 @@
         t.isMoving = false;
 
         if (allowPlayerControl && t.stunTimer <= 0) {
-          const ctrl = this._readPlayerControls(p.index);
+          const ctrl = this.isAllyAI && p.index === 1
+            ? this.allyAI.getControls(t, this, allTanks)
+            : this._readPlayerControls(p.index);
           const onIce = this.map.isTankOnIce(t.x, t.y, t.w, t.h);
 
           if (!onIce) {
@@ -822,7 +836,26 @@
             }
           }
 
-          if (ctrl.fire && t.canFire(this.bullets)) {
+          // AI can hold its position and rotate the turret/body to cover a lane.
+          // Human controls never set faceDir, so their original movement is unchanged.
+          if (
+            ctrl.dir === null &&
+            ctrl.faceDir !== null &&
+            ctrl.faceDir !== undefined &&
+            t.slideTimer <= 0 &&
+            t.iceTurnDelay <= 0
+          ) {
+            t.dir = ctrl.faceDir;
+            t.slideDir = ctrl.faceDir;
+          }
+
+          const aiAimReady =
+            ctrl.dir !== null ||
+            ctrl.faceDir === null ||
+            ctrl.faceDir === undefined ||
+            t.dir === ctrl.faceDir;
+
+          if (ctrl.fire && aiAimReady && t.canFire(this.bullets)) {
             const activeBefore = t.countActiveBullets(this.bullets);
             this.bullets.push(t.createBullet());
             BC.Audio.playShoot();
@@ -830,7 +863,7 @@
               t.burstQueue = 1;
               t.burstTimer = 6;
             }
-          } else if (t.burstQueue > 0 && t.burstTimer <= 0) {
+          } else if (aiAimReady && t.burstQueue > 0 && t.burstTimer <= 0) {
             if (t.countActiveBullets(this.bullets) < t.maxBullets) {
               this.bullets.push(t.createBullet());
               BC.Audio.playShoot();
@@ -1008,59 +1041,64 @@
         if (p.pendingStar && p.pendingStar.alive) continue;
         if (p.respawnTimer > 0) continue;
 
-        const teammate = this.players[1 - p.index];
-        // Teammate must have at least 2 lives (1 active/last life + at least 1 spare to lend)
-        if (!teammate || teammate.lives < 2) continue;
+        // In 3P mode, borrow from the first teammate who has a spare life.
+        const teammate = this.players.find(
+          (other) => other.index !== p.index && other.lives >= 2
+        );
+        if (!teammate || !this._wantsBorrowLife(p.index)) continue;
 
-        let wantsBorrow = false;
-        if (p.index === 0) {
-          // 1P borrow input: Fire keys (Space, J, F, G, Z), B key, touch fire, or holding A+B
-          const justPressed =
-            this._justPressed('Space', 'KeyJ', 'KeyF', 'KeyG', 'KeyZ', 'KeyB') ||
-            this.touchState.fire;
-          const comboHeld =
-            ((this._isHeld('KeyJ') || this._isHeld('Space')) &&
-              (this._isHeld('KeyK') || this._isHeld('KeyB') || this._isHeld('KeyZ'))) ||
-            (this._isHeld('KeyA') && this._isHeld('KeyB'));
-          wantsBorrow = justPressed || comboHeld;
-        } else {
-          // 2P borrow input: Fire keys (K, L, Numpad0, Numpad1, Slash, ShiftRight, Enter, NumpadEnter), or holding combo
-          const justPressed = this._justPressed(
-            'KeyK',
-            'KeyL',
-            'Numpad0',
-            'Numpad1',
-            'Slash',
-            'ShiftRight',
-            'Enter',
-            'NumpadEnter'
-          );
-          const comboHeld =
-            (this._isHeld('KeyK') || this._isHeld('Numpad0')) &&
-            (this._isHeld('KeyL') || this._isHeld('Numpad1') || this._isHeld('Enter'));
-          wantsBorrow = justPressed || comboHeld;
-        }
+        teammate.lives--;
+        p.lives = 1;
+        p.tier = 0;
+        p.respawnTimer = 0;
 
-        if (wantsBorrow) {
-          teammate.lives--;
-          p.lives = 1;
-          p.tier = 0;
-          p.respawnTimer = 0;
-
-          const sp = BC.PLAYER_SPAWNS[p.index];
-          p.pendingStar = new BC.SpawnStar({
-            x: sp.x,
-            y: sp.y,
-            isPlayer: true,
-            playerIndex: p.index,
-            tier: p.tier,
-          });
-          this.spawnStars.push(p.pendingStar);
-          this.floatingScores.push(new BC.FloatingScore(sp.x + 8, sp.y + 8, '1UP'));
-          BC.Audio.playLifeUp();
-          this._notifyUI();
-        }
+        const sp = BC.PLAYER_SPAWNS[p.index];
+        p.pendingStar = new BC.SpawnStar({
+          x: sp.x,
+          y: sp.y,
+          isPlayer: true,
+          playerIndex: p.index,
+          tier: p.tier,
+        });
+        this.spawnStars.push(p.pendingStar);
+        this.floatingScores.push(new BC.FloatingScore(sp.x + 8, sp.y + 8, '1UP'));
+        BC.Audio.playLifeUp();
+        this._notifyUI();
       }
+    }
+
+    _wantsBorrowLife(playerIndex) {
+      if (playerIndex === 0) {
+        // 1P borrow input: Fire keys (Space, J, F, G, Z), B key, touch fire, or holding A+B
+        const justPressed =
+          this._justPressed('Space', 'KeyJ', 'KeyF', 'KeyG', 'KeyZ', 'KeyB') ||
+          this.touchState.fire;
+        const comboHeld =
+          ((this._isHeld('KeyJ') || this._isHeld('Space')) &&
+            (this._isHeld('KeyK') || this._isHeld('KeyB') || this._isHeld('KeyZ'))) ||
+          (this._isHeld('KeyA') && this._isHeld('KeyB'));
+        return justPressed || comboHeld;
+      }
+
+      if (playerIndex === 1) {
+        // 2P borrow input: Fire keys (K, L, Numpad0, Numpad1, Slash, ShiftRight, Enter), or holding combo
+        const justPressed = this._justPressed(
+          'KeyK',
+          'KeyL',
+          'Numpad0',
+          'Numpad1',
+          'Slash',
+          'ShiftRight',
+          'Enter',
+          'NumpadEnter'
+        );
+        const comboHeld =
+          (this._isHeld('KeyK') || this._isHeld('Numpad0')) &&
+          (this._isHeld('KeyL') || this._isHeld('Numpad1') || this._isHeld('Enter'));
+        return justPressed || comboHeld;
+      }
+
+      return this._justPressed('NumpadSubtract');
     }
 
     _readPlayerControls(playerIndex) {
@@ -1068,8 +1106,8 @@
       let fire = false;
 
       if (playerIndex === 0) {
-        if (!this.isTwoPlayer) {
-          // 1P mode: both WASD & Arrow keys work seamlessly
+        if (!this.isTwoPlayer || this.isAllyAI) {
+          // Solo & AI-teammate modes: both WASD & Arrow keys work seamlessly
           if (this._isHeld('KeyW', 'ArrowUp') || this.touchState.up) dir = BC.DIR.UP;
           else if (this._isHeld('KeyS', 'ArrowDown') || this.touchState.down) dir = BC.DIR.DOWN;
           else if (this._isHeld('KeyA', 'ArrowLeft') || this.touchState.left) dir = BC.DIR.LEFT;
@@ -1080,7 +1118,7 @@
             this._isHeld('Space', 'KeyJ', 'KeyZ', 'KeyK') ||
             this.touchState.fire;
         } else {
-          // 2P mode P1: WASD + Space / J / F / G
+          // Multiplayer P1: WASD + Space / J / F / G
           if (this._isHeld('KeyW') || this.touchState.up) dir = BC.DIR.UP;
           else if (this._isHeld('KeyS') || this.touchState.down) dir = BC.DIR.DOWN;
           else if (this._isHeld('KeyA') || this.touchState.left) dir = BC.DIR.LEFT;
@@ -1088,14 +1126,22 @@
 
           fire = this._isHeld('Space', 'KeyJ', 'KeyF', 'KeyG') || this.touchState.fire;
         }
-      } else {
-        // 2P mode P2: Arrow Keys + Numpad0 / Numpad1 / K / L / Slash / ShiftRight
+      } else if (playerIndex === 1) {
+        // Multiplayer P2: Arrow Keys + Numpad0 / Numpad1 / K / L / Slash / ShiftRight
         if (this._isHeld('ArrowUp')) dir = BC.DIR.UP;
         else if (this._isHeld('ArrowDown')) dir = BC.DIR.DOWN;
         else if (this._isHeld('ArrowLeft')) dir = BC.DIR.LEFT;
         else if (this._isHeld('ArrowRight')) dir = BC.DIR.RIGHT;
 
         fire = this._isHeld('Numpad0', 'Numpad1', 'KeyK', 'KeyL', 'Slash', 'ShiftRight');
+      } else {
+        // 3P: Numpad 8/5/4/6 + NumpadSubtract (kept separate from P1/P2 controls)
+        if (this._isHeld('Numpad8')) dir = BC.DIR.UP;
+        else if (this._isHeld('Numpad5')) dir = BC.DIR.DOWN;
+        else if (this._isHeld('Numpad4')) dir = BC.DIR.LEFT;
+        else if (this._isHeld('Numpad6')) dir = BC.DIR.RIGHT;
+
+        fire = this._isHeld('NumpadSubtract');
       }
 
       return { dir, fire };
@@ -1543,16 +1589,16 @@
           }
         }
       } else {
-        // 2P Bonus check (1000 PTS to higher kill count if strictly greater)
+        // Multiplayer Bonus: 1000 PTS to the sole highest kill count.
         if (this.isTwoPlayer && !this.tallyBonusAwarded) {
           this.tallyBonusAwarded = true;
-          const k1 = this.players[0].kills.reduce((a, b) => a + b, 0);
-          const k2 = this.players[1].kills.reduce((a, b) => a + b, 0);
-          if (k1 > k2) {
-            this._awardScore(this.players[0], 1000);
-            BC.Audio.playBonus();
-          } else if (k2 > k1) {
-            this._awardScore(this.players[1], 1000);
+          const totals = this.players.map((p) => p.kills.reduce((a, b) => a + b, 0));
+          const maxKills = Math.max(...totals);
+          const leaders = totals
+            .map((total, index) => ({ total, index }))
+            .filter((entry) => entry.total === maxKills);
+          if (leaders.length === 1) {
+            this._awardScore(this.players[leaders[0].index], 1000);
             BC.Audio.playBonus();
           }
         }
@@ -1703,18 +1749,25 @@
 
       const tread = Math.floor(this.globalFrame / 4) % 2;
       const t1Sprite = BC.getTankSprite('P0', 'P1', BC.DIR.UP, tread);
-      if (this.isTwoPlayer && this.players[1]) {
+      const starBob = Math.sin(this.globalFrame * 0.1) * 2;
+      if (this.isThreePlayer && this.players[2]) {
+        const t2Sprite = BC.getTankSprite('P1', 'P2', BC.DIR.UP, tread);
+        const t3Sprite = BC.getTankSprite('P2', 'P3', BC.DIR.UP, tread);
+        ctx.drawImage(t1Sprite, 76, 104, 16, 16);
+        ctx.drawImage(t2Sprite, 120, 104, 16, 16);
+        ctx.drawImage(t3Sprite, 164, 104, 16, 16);
+        BC.drawText(ctx, '★ 1P ★', 84, 92 + starBob, '#FFD700', 'center');
+        BC.drawText(ctx, '★ 2P ★', 128, 92 + starBob, '#34C759', 'center');
+        BC.drawText(ctx, '★ 3P ★', 172, 92 + starBob, '#58A6FF', 'center');
+      } else if (this.isTwoPlayer && this.players[1]) {
         const t2Sprite = BC.getTankSprite('P1', 'P2', BC.DIR.UP, tread);
         ctx.drawImage(t1Sprite, 100, 104, 16, 16);
         ctx.drawImage(t2Sprite, 140, 104, 16, 16);
+        BC.drawText(ctx, '★ 1P ★', 108, 92 + starBob, '#FFD700', 'center');
+        BC.drawText(ctx, this.isAllyAI ? '★ AI ★' : '★ 2P ★', 148, 92 + starBob, '#34C759', 'center');
       } else {
         ctx.drawImage(t1Sprite, 120, 104, 16, 16);
-      }
-
-      const starBob = Math.sin(this.globalFrame * 0.1) * 2;
-      BC.drawText(ctx, '★ 1P ★', this.isTwoPlayer ? 108 : 128, 92 + starBob, '#FFD700', 'center');
-      if (this.isTwoPlayer && this.players[1]) {
-        BC.drawText(ctx, '★ 2P ★', 148, 92 + starBob, '#34C759', 'center');
+        BC.drawText(ctx, '★ 1P ★', 128, 92 + starBob, '#FFD700', 'center');
       }
 
       // 5. Virtual Reward Announcement Card on Canvas (Clean & Authentic FC / HD Arcade Style)
@@ -1756,6 +1809,8 @@
         this.editor.save();
         BC.Audio.playLifeUp();
         this.isTwoPlayer = false;
+        this.isThreePlayer = false;
+        this.isAllyAI = false;
         this._initPlayers();
         this.stage = BC.TOTAL_CLASSIC_STAGES + 1;
         this._enterStageSelect(false);
@@ -1921,17 +1976,17 @@
       BC.drawBrickWord(ctx, 'CITY', 128, 80 + oy, 5, false);
 
       // Menu Choices
-      const items = ['1 PLAYER', '2 PLAYERS', 'CONSTRUCTION'];
+      const items = ['1 PLAYER', '1P + AI', '2 PLAYERS', '3 PLAYERS', 'CONSTRUCTION'];
       for (let i = 0; i < items.length; i++) {
         const col = isHD && i === this.menuIndex && this.titleSlideY === 0 ? '#FCE4A0' : '#FCFCFC';
-        BC.drawText(ctx, items[i], 92, 138 + i * 16 + oy, col);
+        BC.drawText(ctx, items[i], 92, 126 + i * 13 + oy, col);
       }
 
       // Tank Selector Cursor
       if (this.titleSlideY === 0) {
         const tread = Math.floor(this.globalFrame / 4) % 2;
         const cursorTank = BC.getTankSprite('P0', 'P1', BC.DIR.RIGHT, tread);
-        ctx.drawImage(cursorTank, 68, 134 + this.menuIndex * 16, 16, 16);
+        ctx.drawImage(cursorTank, 68, 122 + this.menuIndex * 13, 16, 16);
       }
 
       // Classic Copyright & Credits
@@ -2078,36 +2133,31 @@
         ctx.drawImage(BC.SPRITES.hudEnemy, hx + col * 8, 24 + row * 8, 8, 8);
       }
 
-      // 2. Player 1 Lives ("IP" + mini tank + spare lives)
-      const p1 = this.players[0];
-      const p1Spare = Math.max(0, p1 ? p1.lives - 1 : 0);
-      const p1CanBorrow = this.isTwoPlayer && p1 && p1.lives <= 0 && this.players[1] && this.players[1].lives >= 2;
-      const p1Blink = p1CanBorrow ? Math.floor(this.globalFrame / 15) % 2 === 0 : true;
+      // 2. Player lives. Three-player HUD moves up to leave room for 3P and the flag.
+      const isThreePlayerHUD = this.isThreePlayer && this.players.length >= 3;
+      const firstLifeY = isThreePlayerHUD ? 116 : 128;
+      for (let i = 0; i < this.players.length; i++) {
+        const p = this.players[i];
+        const labelY = firstLifeY + i * 24;
+        const spare = Math.max(0, p.lives - 1);
+        const canBorrow = this.isTwoPlayer && p.lives <= 0 && this.players.some(
+          (other) => other.index !== p.index && other.lives >= 2
+        );
+        const showLife = canBorrow ? Math.floor(this.globalFrame / 15) % 2 === 0 : true;
+        const label = i === 0 ? 'IP' : (i === 1 && this.isAllyAI ? 'AI' : `${'I'.repeat(i + 1)}P`);
 
-      BC.drawText(ctx, 'IP', hx, 128, '#000000');
-      if (p1Blink) {
-        ctx.drawImage(BC.SPRITES.hudLife, hx, 136, 8, 8);
-        BC.drawText(ctx, String(p1Spare), hx + 9, 136, '#000000');
-      }
-
-      // 3. Player 2 Lives (if 2P)
-      if (this.isTwoPlayer && this.players[1]) {
-        const p2 = this.players[1];
-        const p2Spare = Math.max(0, p2.lives - 1);
-        const p2CanBorrow = p2.lives <= 0 && p1 && p1.lives >= 2;
-        const p2Blink = p2CanBorrow ? Math.floor(this.globalFrame / 15) % 2 === 0 : true;
-
-        BC.drawText(ctx, 'IIP', hx - 4, 152, '#000000');
-        if (p2Blink) {
-          ctx.drawImage(BC.SPRITES.hudLife, hx, 160, 8, 8);
-          BC.drawText(ctx, String(p2Spare), hx + 9, 160, '#000000');
+        BC.drawText(ctx, label, hx - i * 4, labelY, '#000000');
+        if (showLife) {
+          ctx.drawImage(BC.SPRITES.hudLife, hx, labelY + 8, 8, 8);
+          BC.drawText(ctx, String(spare), hx + 9, labelY + 8, '#000000');
         }
       }
 
-      // 4. Stage Flag & Stage Number
-      ctx.drawImage(BC.SPRITES.flag, hx, 184, 16, 16);
+      // 3. Stage Flag & Stage Number
+      const flagY = isThreePlayerHUD ? 192 : 184;
+      ctx.drawImage(BC.SPRITES.flag, hx, flagY, 16, 16);
       const stLabel = this.stage > BC.TOTAL_CLASSIC_STAGES ? 'EX' : String(this.stage);
-      BC.drawText(ctx, stLabel, hx + 16, 202, '#000000', 'right');
+      BC.drawText(ctx, stLabel, hx + 16, flagY + 18, '#000000', 'right');
     }
 
     _renderTally(ctx) {
@@ -2120,13 +2170,23 @@
         this.stage > BC.TOTAL_CLASSIC_STAGES ? 'STAGE CUSTOM' : `STAGE ${this.stage}`;
       BC.drawText(ctx, stageText, 128, 36, '#FCFCFC', 'center');
 
-      // Player Headers & Scores
-      BC.drawText(ctx, 'I-PLAYER', 24, 54, '#D82800');
-      BC.drawText(ctx, String(this.players[0].score), 88, 66, '#FC9838', 'right');
+      const isThreePlayerTally = this.isThreePlayer && this.players.length >= 3;
 
-      if (this.isTwoPlayer && this.players[1]) {
-        BC.drawText(ctx, 'II-PLAYER', 168, 54, '#D82800');
-        BC.drawText(ctx, String(this.players[1].score), 232, 66, '#FC9838', 'right');
+      // Player Headers & Scores
+      if (isThreePlayerTally) {
+        const centers = [40, 128, 216];
+        for (let i = 0; i < 3; i++) {
+          BC.drawText(ctx, `${'I'.repeat(i + 1)}-PLAYER`, centers[i], 54, '#D82800', 'center', 6.5);
+          BC.drawText(ctx, String(this.players[i].score), centers[i], 66, '#FC9838', 'center');
+        }
+      } else {
+        BC.drawText(ctx, 'I-PLAYER', 24, 54, '#D82800');
+        BC.drawText(ctx, String(this.players[0].score), 88, 66, '#FC9838', 'right');
+
+        if (this.isTwoPlayer && this.players[1]) {
+          BC.drawText(ctx, this.isAllyAI ? 'AI-PLAYER' : 'II-PLAYER', 168, 54, '#D82800');
+          BC.drawText(ctx, String(this.players[1].score), 232, 66, '#FC9838', 'right');
+        }
       }
 
       // 4 Enemy Types Tally Rows
@@ -2134,46 +2194,77 @@
         const y = 86 + row * 24;
         const ptsPer = BC.ENEMY_STATS[row].points;
         const icon = BC.getTankSprite('E' + row, 'ENEMY_BASIC', BC.DIR.UP, 0);
-        ctx.drawImage(icon, 120, y - 4, 16, 16);
+        if (!isThreePlayerTally) {
+          ctx.drawImage(icon, 120, y - 4, 16, 16);
+        }
 
         if (row <= this.tallyStep) {
-          // P1 column
-          const k1Raw = this.players[0].kills[row];
-          const k1 = row < this.tallyStep ? k1Raw : Math.min(k1Raw, this.tallyCount);
-          BC.drawText(ctx, String(k1 * ptsPer), 60, y, '#FCFCFC', 'right');
-          BC.drawText(ctx, 'PTS', 64, y, '#FCFCFC');
-          BC.drawText(ctx, String(k1), 108, y, '#FCFCFC', 'right');
-          BC.drawText(ctx, '<', 110, y, '#FCFCFC');
+          if (isThreePlayerTally) {
+            for (let i = 0; i < 3; i++) {
+              const colX = 8 + i * 80;
+              const rawCount = this.players[i].kills[row];
+              const count = row < this.tallyStep ? rawCount : Math.min(rawCount, this.tallyCount);
+              ctx.drawImage(icon, colX, y - 4, 16, 16);
+              BC.drawText(ctx, `${count}<`, colX + 20, y, '#FCFCFC');
+              BC.drawText(ctx, `${count * ptsPer} PTS`, colX + 20, y + 9, '#FCFCFC', 'left', 6.5);
+            }
+          } else {
+            // P1 column
+            const k1Raw = this.players[0].kills[row];
+            const k1 = row < this.tallyStep ? k1Raw : Math.min(k1Raw, this.tallyCount);
+            BC.drawText(ctx, String(k1 * ptsPer), 60, y, '#FCFCFC', 'right');
+            BC.drawText(ctx, 'PTS', 64, y, '#FCFCFC');
+            BC.drawText(ctx, String(k1), 108, y, '#FCFCFC', 'right');
+            BC.drawText(ctx, '<', 110, y, '#FCFCFC');
 
-          // P2 column
-          if (this.isTwoPlayer && this.players[1]) {
-            const k2Raw = this.players[1].kills[row];
-            const k2 = row < this.tallyStep ? k2Raw : Math.min(k2Raw, this.tallyCount);
-            BC.drawText(ctx, '>', 138, y, '#FCFCFC');
-            BC.drawText(ctx, String(k2), 148, y, '#FCFCFC');
-            BC.drawText(ctx, 'PTS', 168, y, '#FCFCFC');
-            BC.drawText(ctx, String(k2 * ptsPer), 234, y, '#FCFCFC', 'right');
+            // P2 column
+            if (this.isTwoPlayer && this.players[1]) {
+              const k2Raw = this.players[1].kills[row];
+              const k2 = row < this.tallyStep ? k2Raw : Math.min(k2Raw, this.tallyCount);
+              BC.drawText(ctx, '>', 138, y, '#FCFCFC');
+              BC.drawText(ctx, String(k2), 148, y, '#FCFCFC');
+              BC.drawText(ctx, 'PTS', 168, y, '#FCFCFC');
+              BC.drawText(ctx, String(k2 * ptsPer), 234, y, '#FCFCFC', 'right');
+            }
           }
         }
       }
 
       // Horizontal Divider & TOTAL
       ctx.fillStyle = BC.getSkin() !== 'classic' ? BC.COLORS.GOLD_TRIM : '#FCFCFC';
-      ctx.fillRect(64, 178, 128, 1.5);
-      BC.drawText(ctx, 'TOTAL', 52, 188, '#FCFCFC');
+      ctx.fillRect(isThreePlayerTally ? 8 : 64, 178, isThreePlayerTally ? 232 : 128, 1.5);
 
       if (this.tallyStep >= 4) {
-        const t1 = this.players[0].kills.reduce((a, b) => a + b, 0);
-        BC.drawText(ctx, String(t1), 108, 188, '#FCFCFC', 'right');
-        if (this.isTwoPlayer && this.players[1]) {
-          const t2 = this.players[1].kills.reduce((a, b) => a + b, 0);
-          BC.drawText(ctx, String(t2), 148, 188, '#FCFCFC');
-          if (t1 !== t2) {
-            const winX = t1 > t2 ? 56 : 196;
+        const totals = this.players.map((p) => p.kills.reduce((a, b) => a + b, 0));
+        if (isThreePlayerTally) {
+          const maxKills = Math.max(...totals);
+          const leaders = totals
+            .map((total, index) => ({ total, index }))
+            .filter((entry) => entry.total === maxKills);
+          for (let i = 0; i < 3; i++) {
+            const colX = 8 + i * 80;
+            BC.drawText(ctx, 'TOTAL', colX, 188, '#FCFCFC', 'left', 6.5);
+            BC.drawText(ctx, String(totals[i]), colX + 72, 188, '#FCFCFC', 'right');
+          }
+          if (leaders.length === 1) {
+            const winX = 40 + leaders[0].index * 88;
             BC.drawText(ctx, 'BONUS!', winX, 208, '#D82800', 'center');
             BC.drawText(ctx, '1000 PTS', winX, 218, '#FCFCFC', 'center');
           }
+        } else {
+          BC.drawText(ctx, 'TOTAL', 52, 188, '#FCFCFC');
+          BC.drawText(ctx, String(totals[0]), 108, 188, '#FCFCFC', 'right');
+          if (this.isTwoPlayer && this.players[1]) {
+            BC.drawText(ctx, String(totals[1]), 148, 188, '#FCFCFC');
+            if (totals[0] !== totals[1]) {
+              const winX = totals[0] > totals[1] ? 56 : 196;
+              BC.drawText(ctx, 'BONUS!', winX, 208, '#D82800', 'center');
+              BC.drawText(ctx, '1000 PTS', winX, 218, '#FCFCFC', 'center');
+            }
+          }
         }
+      } else if (!isThreePlayerTally) {
+        BC.drawText(ctx, 'TOTAL', 52, 188, '#FCFCFC');
       }
     }
 

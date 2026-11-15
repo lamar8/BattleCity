@@ -147,10 +147,12 @@
     { x: 192, y: 0 },
   ];
 
-  // Player spawn positions (16x16 footprint at bottom edge left/right of base)
+  // Player spawn positions (16x16 footprint). P3 sits directly above the Eagle,
+  // immediately outside the fortress top wall so its spawn box stays clear.
   BC.PLAYER_SPAWNS = [
     { x: 64, y: 192 },  // P1: col 8, row 24
     { x: 128, y: 192 }, // P2: col 16, row 24
+    { x: 96, y: 168 },  // P3: Eagle center column, above the top wall
   ];
 
   // Bonus tank indices (0-indexed out of 20 enemies per stage: 4th, 11th, 18th)
@@ -199,6 +201,7 @@
 
       P1: ['#945800', '#E49818', '#F8E470'],
       P2: ['#005C00', '#24A820', '#94F878'],
+      P3: ['#003C88', '#0084D8', '#7CD8FC'],
       ENEMY_BASIC: ['#5C5C5C', '#A8A8A8', '#F4F4F4'],
       ENEMY_RED: ['#880000', '#E02820', '#FCA098'],
       ENEMY_GREEN: ['#005000', '#189818', '#78E868'],
@@ -242,6 +245,7 @@
 
       P1: ['#9B6824', '#E5B24C', '#FFF0B8', '#5EE7DF'],
       P2: ['#1D6B4A', '#3BC485', '#B9FFE0', '#9BF6FF'],
+      P3: ['#46307D', '#8965D6', '#DEC8FF', '#F3A8FF'],
       ENEMY_BASIC: ['#495266', '#8391AC', '#CFD9EB', '#FF6B6B'],
       ENEMY_RED: ['#8C2032', '#E04456', '#FFB3BA', '#FFF3B0'],
       ENEMY_GREEN: ['#1C6B4B', '#37B87E', '#A8F5C8', '#7AF5D8'],
@@ -285,6 +289,7 @@
 
       P1: ['#0A3952', '#1783A8', '#70F8FF', '#FCEE0A'],
       P2: ['#094230', '#16A876', '#69FFC6', '#00F0FF'],
+      P3: ['#5A124D', '#D629A3', '#FF9FE5', '#00F0FF'],
       ENEMY_BASIC: ['#273047', '#4E5F85', '#9EB2D8', '#FF2A85'],
       ENEMY_RED: ['#6E0B2C', '#DB1A50', '#FF7AA8', '#FCEE0A'],
       ENEMY_GREEN: ['#084A38', '#15BA88', '#6DFFD0', '#00F0FF'],
@@ -328,6 +333,7 @@
 
       P1: ['#3B4B2B', '#586E40', '#7D965E', '#EFE7D0'],      // US Sherman Olive Drab
       P2: ['#274536', '#3C6952', '#5B9474', '#E0C068'],      // Allied Forest Pine
+      P3: ['#293B52', '#466784', '#83A9C4', '#D8ECF5'],      // Allied Steel Blue
       ENEMY_BASIC: ['#383C42', '#575D66', '#838B96', '#D85A48'], // Panzer Field Gray
       ENEMY_RED: ['#6E2424', '#A83834', '#D66B60', '#F0D078'],   // Red Command Target
       ENEMY_GREEN: ['#324D3A', '#4E7559', '#78A382', '#D8E0A8'], // Camo Heavy
@@ -371,6 +377,7 @@
 
       P1: ['#7E6E30', '#C4AE54', '#F5E18E', '#4FF0FF'],      // SV-001 Metal Slug Gold-Olive
       P2: ['#236647', '#3BB075', '#8FF0B8', '#FFE46B'],      // Slug Commando Green
+      P3: ['#284A70', '#4389BE', '#9CDCF5', '#FFE46B'],      // Slug Commando Blue
       ENEMY_BASIC: ['#3B4457', '#67748F', '#A3B2CC', '#FF4D38'], // Rebel Iron Gray
       ENEMY_RED: ['#801B1B', '#CC3329', '#FF7C66', '#FFE46B'],   // Rebel Ace Red
       ENEMY_GREEN: ['#215E3E', '#389962', '#7DE09E', '#FFE46B'],
@@ -414,6 +421,7 @@
 
       P1: ['#6E6045', '#A8946D', '#D6C49C', '#4CE8FF'],      // M1A2 Desert Digital Tan
       P2: ['#2B4C54', '#467B87', '#7BB3BF', '#6DFAB8'],      // Modern Urban Tactical Teal
+      P3: ['#343E70', '#596CB0', '#A7BDF0', '#E18CFF'],      // Modern Tactical Cobalt
       ENEMY_BASIC: ['#2D333D', '#4B5566', '#7C889C', '#FF5252'], // Stealth Charcoal
       ENEMY_RED: ['#6B1D28', '#B83344', '#EB6E7B', '#F5B841'],   // Priority Hostile Red
       ENEMY_GREEN: ['#2B4D3E', '#487D64', '#7AB397', '#6AD4FF'],
@@ -457,6 +465,7 @@
 
       P1: ['#7A531E', '#BD8634', '#EBBE6C', '#FFF4CE'],      // Burnished Brass Token
       P2: ['#254F32', '#3D7D4E', '#6EB57C', '#F2DF99'],      // Painted Olive Enamel Token
+      P3: ['#284561', '#47789D', '#91B9D2', '#E0F1FA'],      // Painted Steel Blue Token
       ENEMY_BASIC: ['#2D3036', '#4E545E', '#7F8794', '#D1382E'], // Cast Iron Token
       ENEMY_RED: ['#6B1B1B', '#A62D29', '#D65B51', '#F2CA6B'],   // Crimson Lacquer Token
       ENEMY_GREEN: ['#27543B', '#3E825A', '#6BB587', '#FFF4CE'],

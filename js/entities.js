@@ -354,7 +354,7 @@
     constructor(opts) {
       this.id = nextEntityId++;
       this.isPlayer = !!opts.isPlayer;
-      this.playerIndex = opts.playerIndex || 0; // 0 = P1, 1 = P2
+      this.playerIndex = opts.playerIndex || 0; // 0 = P1, 1 = P2, 2 = P3
       this.enemyType = opts.enemyType || 0;     // 0..3
       this.isBonus = !!opts.isBonus;            // Flashing red bonus carrier
 
@@ -567,7 +567,7 @@
 
       if (this.isPlayer) {
         designKey = 'P' + this.tier;
-        paletteKey = this.playerIndex === 0 ? 'P1' : 'P2';
+        paletteKey = ['P1', 'P2', 'P3'][this.playerIndex] || 'P1';
       } else {
         designKey = 'E' + this.enemyType;
         if (this.isBonus && Math.floor(globalFrame / 8) % 2 === 0) {

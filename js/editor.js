@@ -59,9 +59,10 @@
     }
 
     _isProtectedBlock(bx, by) {
-      // Eagle block (6, 12), P1 spawn (4, 12), P2 spawn (8, 12), Enemy spawns (0,0), (6,0), (12,0)
+      // Eagle (6,12), P1 (4,12), P2 (8,12), P3 above Eagle (6,10/11), Enemy spawns
       if (by === 0 && (bx === 0 || bx === 6 || bx === 12)) return true;
       if (by === 12 && (bx === 4 || bx === 6 || bx === 8)) return true;
+      if (bx === 6 && (by === 10 || by === 11)) return true;
       return false;
     }
 
@@ -79,6 +80,8 @@
       clearBlock(12, 0);
       clearBlock(4, 12);
       clearBlock(8, 12);
+      clearBlock(6, 10);
+      clearBlock(6, 11);
 
       for (const [bx, by] of BC.BASE_WALL_COORDS) {
         if (this.grid[by][bx] === T.EMPTY) {

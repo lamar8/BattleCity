@@ -27,7 +27,6 @@
         </select>
         <div class="stage-jump">
           <select id="stage-select" aria-label="选择关卡"></select>
-          <button id="btn-jump" type="button" title="跳转到所选关卡">跳关</button>
           <button id="btn-victory-demo" type="button" title="点击立即演示最终通关动画与随机小学试卷大奖通知">通关大奖</button>
         </div>
         <select id="speed-select" aria-label="游戏速度" title="调节游戏整体节奏">
@@ -51,7 +50,8 @@
         </select>
         <div class="life-controls" role="group" aria-label="直接加命">
           <button id="btn-life-p1" type="button" title="给 1P 直接增加 1 条命（本局进行中可用）" disabled>1P +1命</button>
-          <button id="btn-life-p2" type="button" title="给 2P 直接增加 1 条命（仅双人模式可用）" disabled>2P +1命</button>
+          <button id="btn-life-p2" type="button" title="给 2P 或 AI 队友直接增加 1 条命（双人 / 三人 / AI 队友模式可用）" disabled>2P +1命</button>
+          <button id="btn-life-p3" type="button" title="给 3P 直接增加 1 条命（三人模式可用）" disabled>3P +1命</button>
         </div>
         <button id="btn-pause" type="button" title="暂停/继续 (P / Enter)">暂停</button>
         <button id="btn-title" type="button" title="返回主标题菜单">主菜单</button>
@@ -119,10 +119,20 @@
         <span class="kbd">P</span> / <span class="kbd">Enter</span> 暂停
       </div>
       <div class="legend-item">
+        <strong>单人 + AI 队友：</strong>
+        主菜单选择 <span class="kbd">1P + AI</span>，你操作 1P，AI 操作 2P，主动守家、寻路拦截敌军并规避炮火。
+      </div>
+      <div class="legend-item">
         <strong>双人(2P)：</strong>
         1P <span class="kbd">WASD</span>+<span class="kbd">J/空格</span> ｜
         2P <span class="kbd">方向键</span>+<span class="kbd">K/小键盘0</span> ｜
         <strong>借命复活：</strong>阵亡后按自身开火键（1P <span class="kbd">J</span>/<span class="kbd">空格</span>，2P <span class="kbd">K</span>/<span class="kbd">小键盘0</span> 或 FC原版<span class="kbd">A+B</span>）向队友借命
+      </div>
+      <div class="legend-item">
+        <strong>三人(3P)：</strong>
+        1P <span class="kbd">WASD</span>+<span class="kbd">J/空格</span> ｜
+        2P <span class="kbd">方向键</span>+<span class="kbd">K/小键盘0</span> ｜
+        3P <span class="kbd">小键盘8/5/4/6</span> 移动+<span class="kbd">小键盘减号(-)</span> 开火（出生于老鹰正上方）
       </div>
       <div class="legend-item">
         <strong>地图编辑(CONSTRUCTION)：</strong>
@@ -139,6 +149,7 @@
   <script src="js/levels.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/entities.js"></script>
+  <script src="js/ally-ai.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/game.js"></script>
   <script>
@@ -153,10 +164,10 @@
       const speedSelect = document.getElementById('speed-select');
       const starRateSelect = document.getElementById('star-rate-select');
       const bulletSpeedSelect = document.getElementById('bullet-speed-select');
-      const btnJump = document.getElementById('btn-jump');
       const btnVictoryDemo = document.getElementById('btn-victory-demo');
       const btnLifeP1 = document.getElementById('btn-life-p1');
       const btnLifeP2 = document.getElementById('btn-life-p2');
+      const btnLifeP3 = document.getElementById('btn-life-p3');
       const btnPause = document.getElementById('btn-pause');
       const btnTitle = document.getElementById('btn-title');
       const btnMute = document.getElementById('btn-mute');
@@ -245,6 +256,8 @@
         btnPause.classList.toggle('active', !!info.paused);
         btnLifeP1.disabled = !game.canAddLife(0);
         btnLifeP2.disabled = !game.canAddLife(1);
+        btnLifeP3.disabled = !game.canAddLife(2);
+        btnLifeP2.textContent = info.isAllyAI ? 'AI +1命' : '2P +1命';
         syncSkinUI();
 
         if (info.state === 'VICTORY' && info.victoryReward) {
@@ -277,17 +290,15 @@
         });
       }
 
-      stageSelect.addEventListener('change', () => stageSelect.blur());
+      stageSelect.addEventListener('change', () => {
+        const s = parseInt(stageSelect.value, 10) || 1;
+        game.jumpToStage(s, game.isTwoPlayer);
+        stageSelect.blur();
+      });
 
       speedSelect.addEventListener('change', () => {
         game.setSpeedScale(parseFloat(speedSelect.value));
         speedSelect.blur();
-      });
-
-      btnJump.addEventListener('click', () => {
-        const s = parseInt(stageSelect.value, 10) || 1;
-        game.jumpToStage(s, game.isTwoPlayer);
-        btnJump.blur();
       });
 
       btnLifeP1.addEventListener('click', () => {
@@ -298,6 +309,11 @@
       btnLifeP2.addEventListener('click', () => {
         game.addLife(1);
         btnLifeP2.blur();
+      });
+
+      btnLifeP3.addEventListener('click', () => {
+        game.addLife(2);
+        btnLifeP3.blur();
       });
 
       btnPause.addEventListener('click', () => {
