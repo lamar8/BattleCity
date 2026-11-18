@@ -63,10 +63,10 @@
 
   // Authentic NES 60Hz enemy stats (lowered to true 1:1 FC Battle City pacing)
   BC.ENEMY_STATS = {
-    0: { name: 'BASIC', speed: 0.55, bulletSpeed: 1.8, hp: 1, points: 100, fireRate: 95 },
-    1: { name: 'FAST',  speed: 1.05, bulletSpeed: 2.0, hp: 1, points: 200, fireRate: 85 },
-    2: { name: 'POWER', speed: 0.65, bulletSpeed: 2.8, hp: 1, points: 300, fireRate: 68 },
-    3: { name: 'ARMOR', speed: 0.55, bulletSpeed: 2.0, hp: 4, points: 400, fireRate: 80 },
+    0: { name: 'BASIC', speed: 0.55, bulletSpeed: 1.0, hp: 1, points: 100, fireRate: 95 },
+    1: { name: 'FAST',  speed: 1.05, bulletSpeed: 1.2, hp: 1, points: 200, fireRate: 85 },
+    2: { name: 'POWER', speed: 0.65, bulletSpeed: 1.8, hp: 1, points: 300, fireRate: 68 },
+    3: { name: 'ARMOR', speed: 0.55, bulletSpeed: 1.2, hp: 4, points: 400, fireRate: 80 },
   };
 
   // Player Upgrade Tiers (0..3 stars) - true 1:1 FC speed
